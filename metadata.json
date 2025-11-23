@@ -1,0 +1,8 @@
+{
+  "name": "NextBarber Pro",
+  "description": "A premium, mobile-first barbershop scheduling system with AI-powered style consultation.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}

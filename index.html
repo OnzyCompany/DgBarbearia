@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NextBarber Pro</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            gold: {
+              DEFAULT: '#D4A853',
+              light: '#E5BE7D',
+              dark: '#B8923F',
+            },
+            dark: {
+              DEFAULT: '#0D0D0D',
+              card: '#1A1A1A',
+              hover: '#252525',
+            },
+          },
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            display: ['Poppins', 'sans-serif'],
+          },
+          animation: {
+            'pulse-gold': 'pulse-gold 2s ease-in-out infinite',
+          },
+          keyframes: {
+            'pulse-gold': {
+              '0%, 100%': { boxShadow: '0 0 0 0 rgba(212, 168, 83, 0.4)' },
+              '50%': { boxShadow: '0 0 0 15px rgba(212, 168, 83, 0)' },
+            },
+          },
+        }
+      }
+    }
+  </script>
+  <script type="importmap">
+  {
+    "imports": {
+      "framer-motion": "https://aistudiocdn.com/framer-motion@^12.23.24",
+      "lucide-react": "https://aistudiocdn.com/lucide-react@^0.554.0",
+      "next/": "https://aistudiocdn.com/next@^16.0.3/",
+      "next": "https://aistudiocdn.com/next@^16.0.3",
+      "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
+      "zustand": "https://aistudiocdn.com/zustand@^5.0.8",
+      "react/": "https://aistudiocdn.com/react@^19.2.0/",
+      "react": "https://aistudiocdn.com/react@^19.2.0",
+      "react-hot-toast": "https://aistudiocdn.com/react-hot-toast@^2.6.0",
+      "tailwindcss": "https://aistudiocdn.com/tailwindcss@^4.1.17",
+      "firebase/": "https://aistudiocdn.com/firebase@^12.6.0/",
+      "canvas-confetti": "https://aistudiocdn.com/canvas-confetti@^1.9.4",
+      "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/"
+    }
+  }
+  </script>
+  <style>
+    body { 
+      margin: 0; 
+      background-color: #0D0D0D; 
+      color: white; 
+      font-family: 'Inter', sans-serif;
+    }
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #1A1A1A;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #252525;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #D4A853;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module" src="./index.tsx"></script>
+</body>
+</html>
