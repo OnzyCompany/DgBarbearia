@@ -1,8 +1,9 @@
+
 'use client';
 
 import { motion } from 'framer-motion';
 import { Calendar, Clock, Star, MapPin } from 'lucide-react';
-import { StyleConsultant } from '@/components/ai/StyleConsultant';
+import { StyleConsultant } from '../components/ai/StyleConsultant';
 
 export default function HomePage() {
   const navigateToSchedule = () => {

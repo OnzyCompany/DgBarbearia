@@ -1,9 +1,10 @@
+
 'use client';
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useBookingStore } from '@/stores/bookingStore';
-import { BookingSuccessAnimation } from '@/components/cliente/BookingSuccessAnimation';
+import { useBookingStore } from '../../../stores/bookingStore';
+import { BookingSuccessAnimation } from '../../../components/cliente/BookingSuccessAnimation';
 import { ArrowLeft, Check, Scissors, Users, Calendar, Clock } from 'lucide-react';
 
 const ETAPAS = [

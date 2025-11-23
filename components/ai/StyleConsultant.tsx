@@ -4,7 +4,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Send, Zap, BrainCircuit, X } from 'lucide-react';
-import { ConsultMode } from '@/types';
+import { ConsultMode } from '../../types';
 import { GoogleGenAI } from "@google/genai";
 
 export const StyleConsultant: React.FC = () => {

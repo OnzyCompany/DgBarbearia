@@ -1,5 +1,6 @@
+
 import { create } from 'zustand';
-import { Agendamento } from '@/types';
+import { Agendamento } from '../types';
 
 interface BookingState {
   dadosAgendamento: Partial<Agendamento>;

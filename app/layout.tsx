@@ -1,7 +1,6 @@
 
 import React from 'react';
 import { Toaster } from 'react-hot-toast';
-import './globals.css';
 
 export const metadata = {
   title: 'NextBarber Pro',

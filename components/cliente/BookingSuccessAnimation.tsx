@@ -1,10 +1,11 @@
+
 'use client';
 
 import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { CheckCircle, Calendar, Clock, Scissors, Sparkles } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { Agendamento } from '@/types';
+import { Agendamento } from '../../types';
 
 interface Props {
   dados: Partial<Agendamento>;
