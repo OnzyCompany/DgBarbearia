@@ -37,7 +37,9 @@ export default function AgendarPage() {
   // Date Logic
   const [datasDisponiveis, setDatasDisponiveis] = useState<any[]>([]);
   const [horariosGerados, setHorariosGerados] = useState<string[]>([]);
+  const [horariosOcupados, setHorariosOcupados] = useState<string[]>([]); // New State for busy slots
   const [dataSelecionadaObj, setDataSelecionadaObj] = useState<Date>(new Date());
+  const [loadingHorarios, setLoadingHorarios] = useState(false);
 
   // Fetch Data
   useEffect(() => {
@@ -74,7 +76,6 @@ export default function AgendarPage() {
 
       } catch (error: any) {
         console.error("Erro fatal ao carregar dados:", error);
-        // Fallback demo data
         if (error.code === 'permission-denied') {
             toast.error("Modo Offline: Configuração do Banco Pendente");
             setServicos([{ id: 'demo1', nome: 'Corte Degradê (Demo)', preco: 50, duracao: 45 }]);
@@ -117,7 +118,6 @@ export default function AgendarPage() {
       }
       setDatasDisponiveis(datas);
       
-      // Seleciona hoje por padrão se não tiver
       if (datas.length > 0) {
         setDataSelecionadaObj(datas[0].dateObj);
       }
@@ -130,18 +130,47 @@ export default function AgendarPage() {
       return `${year}-${month}-${day}`;
   };
 
+  // Carrega horários ocupados do banco quando muda a data
+  useEffect(() => {
+    const carregarOcupados = async () => {
+      if(!db || !dataSelecionadaObj) return;
+      setLoadingHorarios(true);
+      try {
+        const dataStr = dateToLocalString(dataSelecionadaObj);
+        // Busca agendamentos desta data que NÃO estejam cancelados
+        // Nota: Firestore requer índice composto para queries complexas. 
+        // Simplificando: Buscamos todos do dia e filtramos no cliente.
+        const q = query(
+           collection(db, 'agendamentos'), 
+           where('data', '==', dataStr)
+        );
+        const snap = await getDocs(q);
+        const ocupados = snap.docs
+          .map(d => d.data())
+          .filter(ag => ag.status !== 'cancelado') // Ignora cancelados
+          .map(ag => ag.horario);
+          
+        setHorariosOcupados(ocupados);
+      } catch (e) {
+        console.error("Erro ao buscar horários ocupados:", e);
+      } finally {
+        setLoadingHorarios(false);
+      }
+    };
+
+    carregarOcupados();
+  }, [dataSelecionadaObj]);
+
   const gerarHorarios = (data: Date) => {
-      // Configurações padrão caso falhe o load
       const cfg = horariosConfig || {};
       const diasSemana = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
       const diaNome = diasSemana[data.getDay()];
       
-      // Configuração do dia específico
       const configDia = cfg?.dias?.[diaNome];
       const intervalo = Number(cfg?.intervalo || 60);
 
       if (configDia && !configDia.ativo) {
-          setHorariosGerados([]); // Dia fechado
+          setHorariosGerados([]); 
           return;
       }
 
@@ -157,13 +186,12 @@ export default function AgendarPage() {
       const slots = [];
       let atual = inicioMinutos;
 
-      // Se for HOJE, filtrar horários passados
       const hoje = new Date();
       const ehHoje = data.getDate() === hoje.getDate() && data.getMonth() === hoje.getMonth() && data.getFullYear() === hoje.getFullYear();
       const minutosAgora = hoje.getHours() * 60 + hoje.getMinutes();
 
       while (atual < fimMinutos) {
-          // Se for hoje e o horário já passou, pula
+          // 1. Filtro de Passado
           if (ehHoje && atual <= minutosAgora) {
               atual += intervalo;
               continue; 
@@ -173,7 +201,11 @@ export default function AgendarPage() {
           const m = atual % 60;
           const timeLabel = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
           
-          slots.push(timeLabel);
+          // 2. Filtro de Ocupado (Banco de Dados)
+          if (!horariosOcupados.includes(timeLabel)) {
+             slots.push(timeLabel);
+          }
+          
           atual += intervalo;
       }
 
@@ -181,10 +213,10 @@ export default function AgendarPage() {
   };
 
   useEffect(() => {
-      if(dataSelecionadaObj) {
+      if(dataSelecionadaObj && !loadingHorarios) {
           gerarHorarios(dataSelecionadaObj);
       }
-  }, [dataSelecionadaObj, horariosConfig]);
+  }, [dataSelecionadaObj, horariosConfig, horariosOcupados, loadingHorarios]);
 
   const handleConfirmarAgendamento = async () => {
       if (!clienteNome || !clienteTelefone) {
@@ -195,27 +227,48 @@ export default function AgendarPage() {
       try {
           const dateStr = dateToLocalString(dataSelecionadaObj);
           
-          // 1. Verificar se o cliente já existe pelo telefone
+          // DOUBLE CHECK: Verificar se o horário ainda está livre antes de salvar
+          // (Previne duas pessoas clicando ao mesmo tempo)
+          const qCheck = query(
+            collection(db, 'agendamentos'), 
+            where('data', '==', dateStr),
+            where('horario', '==', dadosAgendamento.horario)
+          );
+          const checkSnap = await getDocs(qCheck);
+          const existeAtivo = checkSnap.docs.some(d => d.data().status !== 'cancelado');
+          
+          if (existeAtivo) {
+            toast.error("Ops! Esse horário acabou de ser reservado. Escolha outro.");
+            setEtapaAtual(3); // Volta para escolha de horário
+            // Recarrega horários
+            const ocupadosAtualizados = checkSnap.docs.map(d => d.data().horario);
+            setHorariosOcupados(prev => [...prev, ...ocupadosAtualizados]);
+            return;
+          }
+
+          // 1. Lógica de Cliente (Unicidade pelo telefone)
           let clienteId = null;
-          const cleanPhone = clienteTelefone.replace(/\D/g, '');
+          const cleanPhone = clienteTelefone.replace(/\D/g, ''); // Remove formatação para busca
           
           try {
             const clientesRef = collection(db, 'clientes');
-            // Busca apenas pelo telefone
-            const qCliente = query(clientesRef, where('telefone', '==', clienteTelefone)); 
-            const clienteSnap = await getDocs(qCliente);
+            // Busca simplificada (Pode requerer ajuste de índice no firebase, mas where simples costuma funcionar)
+            // Se falhar, vamos criar um ID baseado no telefone para garantir unicidade sem query complexa
+            const clientesSnap = await getDocs(clientesRef); 
+            // Filtragem no cliente para evitar erro de índice se a base for pequena
+            const clienteExistente = clientesSnap.docs.find(doc => {
+                const tel = doc.data().telefone?.replace(/\D/g, '');
+                return tel === cleanPhone;
+            });
 
-            if (!clienteSnap.empty) {
-                // Cliente existe, atualiza nome e data
-                const docCliente = clienteSnap.docs[0];
-                clienteId = docCliente.id;
+            if (clienteExistente) {
+                clienteId = clienteExistente.id;
                 await updateDoc(doc(db, 'clientes', clienteId), {
-                    nome: clienteNome, // Atualiza nome caso tenha mudado
+                    nome: clienteNome,
                     ultimoAgendamento: serverTimestamp(),
-                    totalVisitas: (docCliente.data().totalVisitas || 0) + 1
+                    totalVisitas: (clienteExistente.data().totalVisitas || 0) + 1
                 });
             } else {
-                // Cliente novo
                 const novoCliente = await addDoc(collection(db, 'clientes'), {
                     nome: clienteNome,
                     telefone: clienteTelefone,
@@ -226,8 +279,7 @@ export default function AgendarPage() {
                 clienteId = novoCliente.id;
             }
           } catch(e) {
-              console.error("Erro ao gerenciar cliente:", e);
-              // Segue o fluxo mesmo se der erro no cliente para não travar o agendamento
+              console.error("Erro cliente:", e);
           }
 
           // 2. Criar Agendamento
@@ -237,16 +289,16 @@ export default function AgendarPage() {
               clienteTelefone,
               clienteId,
               status: 'pendente',
-              criadoEm: serverTimestamp(), // Importante para ordenação
+              criadoEm: serverTimestamp(),
               servicoNome: dadosAgendamento.servicoNome,
               barbeiroNome: dadosAgendamento.barbeiroNome,
               preco: dadosAgendamento.preco,
-              data: dadosAgendamento.data // Formato YYYY-MM-DD
+              data: dateStr 
           };
 
           await addDoc(collection(db, 'agendamentos'), novoAgendamento);
-
           setSucesso(true);
+
       } catch (error: any) {
           console.error("Erro ao agendar", error);
           if (error.code === 'permission-denied') {
@@ -396,7 +448,9 @@ export default function AgendarPage() {
                 })}
               </div>
 
-              {horariosGerados.length === 0 ? (
+              {loadingHorarios ? (
+                 <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-gold" /></div>
+              ) : horariosGerados.length === 0 ? (
                   <div className="text-center py-8 bg-dark-card rounded-xl border border-white/5">
                       <p className="text-gray-500">Nenhum horário disponível para este dia.</p>
                   </div>
@@ -406,7 +460,6 @@ export default function AgendarPage() {
                     <button
                         key={time}
                         onClick={() => {
-                            // Salva a data no formato YYYY-MM-DD
                             setDataHorario(dateToLocalString(dataSelecionadaObj), time);
                             avancar();
                         }}

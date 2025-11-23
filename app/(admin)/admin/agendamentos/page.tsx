@@ -4,7 +4,7 @@
 import React, { useState, useEffect } from 'react';
 import { Sidebar } from '../../../../components/admin/Sidebar';
 import { motion } from 'framer-motion';
-import { Calendar, Clock, User, Scissors, CheckCircle, MessageCircle, AlertCircle } from 'lucide-react';
+import { Calendar, Clock, User, Scissors, CheckCircle, MessageCircle, AlertCircle, XCircle } from 'lucide-react';
 import { collection, query, orderBy, onSnapshot, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../../../lib/firebase';
 import toast from 'react-hot-toast';
@@ -28,8 +28,6 @@ export default function AdminAgendamentosPage() {
   useEffect(() => {
     if (!db) return;
 
-    // Use a simple query first to avoid "Missing Index" errors on multiple sort fields
-    // Sorting by created time ensures recent ones are top
     const q = query(collection(db, 'agendamentos'), orderBy('criadoEm', 'desc'));
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -68,6 +66,32 @@ export default function AdminAgendamentosPage() {
     }
   };
 
+  const handleCancelar = async (agendamento: Agendamento) => {
+      // 1. Verificar regra de 30 minutos
+      const [ano, mes, dia] = agendamento.data.split('-').map(Number);
+      const [hora, min] = agendamento.horario.split(':').map(Number);
+      const dataAgendamento = new Date(ano, mes - 1, dia, hora, min);
+      const agora = new Date();
+      
+      const diffMs = dataAgendamento.getTime() - agora.getTime();
+      const diffMins = diffMs / 60000;
+
+      if (diffMins < 30 && diffMins > 0) {
+          if (!window.confirm("ATENÇÃO: Este agendamento é em menos de 30 minutos! Deseja realmente cancelar?")) return;
+      } else if (!window.confirm(`Cancelar agendamento de ${agendamento.clienteNome}?`)) {
+          return;
+      }
+
+      try {
+        await updateDoc(doc(db, 'agendamentos', agendamento.id), {
+            status: 'cancelado'
+        });
+        toast.success("Agendamento cancelado e horário liberado.");
+      } catch (error) {
+          toast.error("Erro ao cancelar");
+      }
+  };
+
   return (
     <div className="flex h-screen bg-[#0D0D0D]">
       <Sidebar />
@@ -86,6 +110,8 @@ export default function AdminAgendamentosPage() {
               className={`p-4 rounded-xl border flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors ${
                   agendamento.status === 'pendente' 
                     ? 'bg-[#1A1A1A] border-yellow-500/50 shadow-[0_0_15px_rgba(234,179,8,0.1)]' 
+                    : agendamento.status === 'cancelado'
+                    ? 'bg-[#1A1A1A]/50 border-red-900/30 opacity-60'
                     : 'bg-[#1A1A1A] border-[#252525]'
               }`}
             >
@@ -104,6 +130,11 @@ export default function AdminAgendamentosPage() {
                     {agendamento.status === 'confirmado' && (
                         <span className="text-[10px] bg-green-500/20 text-green-500 px-2 py-0.5 rounded-full font-bold uppercase border border-green-500/30">
                             Confirmado
+                        </span>
+                    )}
+                     {agendamento.status === 'cancelado' && (
+                        <span className="text-[10px] bg-red-500/20 text-red-500 px-2 py-0.5 rounded-full font-bold uppercase border border-red-500/30">
+                            Cancelado
                         </span>
                     )}
                   </div>
@@ -128,25 +159,45 @@ export default function AdminAgendamentosPage() {
                 </div>
                 
                 {agendamento.status === 'pendente' && (
-                    <button 
-                        onClick={() => handleConfirmar(agendamento)}
-                        className="px-4 py-2 bg-green-600 hover:bg-green-500 text-white font-bold rounded-lg flex items-center gap-2 shadow-lg shadow-green-900/20 transition-all"
-                    >
-                        <CheckCircle className="w-4 h-4" />
-                        Confirmar
-                    </button>
+                    <>
+                        <button 
+                            onClick={() => handleCancelar(agendamento)}
+                            className="px-4 py-2 bg-red-900/30 hover:bg-red-900/50 text-red-400 font-bold rounded-lg flex items-center gap-2 transition-all border border-red-900/50"
+                        >
+                            <XCircle className="w-4 h-4" />
+                            Cancelar
+                        </button>
+                        <button 
+                            onClick={() => handleConfirmar(agendamento)}
+                            className="px-4 py-2 bg-green-600 hover:bg-green-500 text-white font-bold rounded-lg flex items-center gap-2 shadow-lg shadow-green-900/20 transition-all"
+                        >
+                            <CheckCircle className="w-4 h-4" />
+                            Confirmar
+                        </button>
+                    </>
                 )}
-                 {agendamento.status === 'confirmado' && agendamento.clienteTelefone && (
-                    <button 
-                        onClick={() => {
-                            const num = agendamento.clienteTelefone!.replace(/\D/g, '');
-                            window.open(`https://api.whatsapp.com/send?phone=55${num}`, '_blank');
-                        }}
-                        className="px-3 py-2 bg-[#252525] hover:bg-[#333] text-gray-300 rounded-lg flex items-center gap-2 border border-[#333]"
-                        title="Enviar mensagem"
-                    >
-                        <MessageCircle className="w-4 h-4" />
-                    </button>
+                 {agendamento.status === 'confirmado' && (
+                    <div className="flex gap-2">
+                        <button 
+                             onClick={() => handleCancelar(agendamento)}
+                             className="px-3 py-2 bg-red-900/20 hover:bg-red-900/40 text-red-500 rounded-lg flex items-center gap-2 border border-red-900/30"
+                             title="Cancelar"
+                        >
+                            <XCircle className="w-4 h-4" />
+                        </button>
+                        {agendamento.clienteTelefone && (
+                            <button 
+                                onClick={() => {
+                                    const num = agendamento.clienteTelefone!.replace(/\D/g, '');
+                                    window.open(`https://api.whatsapp.com/send?phone=55${num}`, '_blank');
+                                }}
+                                className="px-3 py-2 bg-[#252525] hover:bg-[#333] text-gray-300 rounded-lg flex items-center gap-2 border border-[#333]"
+                                title="Enviar mensagem"
+                            >
+                                <MessageCircle className="w-4 h-4" />
+                            </button>
+                        )}
+                    </div>
                 )}
               </div>
             </motion.div>

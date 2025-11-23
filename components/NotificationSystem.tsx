@@ -14,21 +14,21 @@ export function NotificationSystem() {
   const [audioEnabled, setAudioEnabled] = useState(false);
 
   useEffect(() => {
-    // Inicializa o som de notificação
-    audioRef.current = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+    // Som de sino mais audível e curto
+    audioRef.current = new Audio('https://cdn.freesound.org/previews/536/536108_11537492-lq.mp3');
   }, []);
 
-  // Expose global function for the Admin Panel to enable audio
   useEffect(() => {
      // @ts-ignore
      window.enableAppAudio = () => {
          if (audioRef.current) {
+             audioRef.current.volume = 1.0;
              audioRef.current.play().then(() => {
                  audioRef.current?.pause();
                  audioRef.current!.currentTime = 0;
                  setAudioEnabled(true);
                  toast.success("Áudio Ativado!");
-             }).catch(e => console.log(e));
+             }).catch(e => console.log("Erro ao ativar áudio:", e));
          }
      };
   }, []);
@@ -36,19 +36,11 @@ export function NotificationSystem() {
   const playSound = () => {
     if (audioRef.current) {
       audioRef.current.currentTime = 0;
-      audioRef.current.play().catch(e => console.log("Audio play blocked (needs interaction)", e));
+      audioRef.current.play().catch(e => console.log("Audio play blocked by browser. User needs to interact first.", e));
     }
   };
 
   useEffect(() => {
-    const requestPermission = async () => {
-      if (!('Notification' in window)) return;
-      if (Notification.permission === 'default') {
-        await Notification.requestPermission();
-      }
-    };
-    requestPermission();
-
     if (!db) return;
 
     // LISTENER: Notificações Push (Geral)
@@ -86,8 +78,8 @@ export function NotificationSystem() {
                     const data = change.doc.data();
                     playSound();
                     dispararNotificacao(
-                        'Novo Agendamento! 📅',
-                        `${data.clienteNome} agendou ${data.servicoNome} às ${data.horario}.`,
+                        'Novo Agendamento! 🔔',
+                        `${data.clienteNome} marcou ${data.servicoNome} às ${data.horario}.`,
                         '/admin/agendamentos'
                     );
                 }
@@ -104,22 +96,20 @@ export function NotificationSystem() {
   }, [isAdmin]);
 
   const dispararNotificacao = (titulo: string, corpo: string, url?: string) => {
-    // Toast
+    // Toast Visual
     toast(corpo, {
       icon: '🔔',
       duration: 6000,
       style: { borderRadius: '10px', background: '#333', color: '#fff', border: '1px solid #D4A853' },
     });
 
-    // Native Notification
+    // Notificação Nativa do SO
     if ('Notification' in window && Notification.permission === 'granted') {
-       // Check if document is hidden to show notification primarily when tab is inactive
-       // But we show it always as requested
        try {
         const notif = new Notification(titulo || 'NextBarber', {
             body: corpo,
             icon: 'https://cdn-icons-png.flaticon.com/512/1000/1000627.png',
-            tag: 'nextbarber-alert' // Prevents stacking
+            tag: 'nextbarber-alert'
         });
         if (url) {
             notif.onclick = (e) => {
