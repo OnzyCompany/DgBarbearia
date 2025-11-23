@@ -4,8 +4,8 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useBookingStore } from '../../../stores/bookingStore';
 import { BookingSuccessAnimation } from '../../../components/cliente/BookingSuccessAnimation';
-import { ArrowLeft, Check, Scissors, Users, Calendar, Clock } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { ArrowLeft, Check, Scissors, Users } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 const ETAPAS = [
   { id: 1, nome: 'Serviço' },
@@ -27,7 +27,7 @@ const BARBEIROS = [
 ];
 
 export default function AgendarPage() {
-  const router = useRouter();
+  const navigate = useNavigate();
   const [etapaAtual, setEtapaAtual] = useState(1);
   const [sucesso, setSucesso] = useState(false);
   const { dadosAgendamento, setServico, setBarbeiro, setDataHorario, limparDados } = useBookingStore();
@@ -36,7 +36,7 @@ export default function AgendarPage() {
   const voltar = () => setEtapaAtual((e) => Math.max(e - 1, 1));
   
   const navigateHome = () => {
-    router.push('/');
+    navigate('/');
   };
 
   return (

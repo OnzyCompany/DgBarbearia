@@ -3,13 +3,13 @@
 import { motion } from 'framer-motion';
 import { Calendar, Clock, Star, MapPin } from 'lucide-react';
 import { StyleConsultant } from '../components/ai/StyleConsultant';
-import { useRouter } from 'next/navigation';
+import { useNavigate } from 'react-router-dom';
 
 export default function HomePage() {
-  const router = useRouter();
+  const navigate = useNavigate();
 
   const navigateToSchedule = () => {
-    router.push('/agendar');
+    navigate('/agendar');
   };
 
   return (
