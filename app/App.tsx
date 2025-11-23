@@ -8,6 +8,10 @@ import AdminLoginPage from './(admin)/admin/page';
 import AdminDashboardPage from './(admin)/admin/dashboard/page';
 import AdminServicosPage from './(admin)/admin/servicos/page';
 import AdminAgendamentosPage from './(admin)/admin/agendamentos/page';
+import AdminBarbeirosPage from './(admin)/admin/barbeiros/page';
+import AdminClientesPage from './(admin)/admin/clientes/page';
+import AdminHorariosPage from './(admin)/admin/horarios/page';
+import AdminConfiguracoesPage from './(admin)/admin/configuracoes/page';
 
 // Layout wrapper to apply global styles and providers
 const Layout = ({ children }: { children: React.ReactNode }) => {
@@ -44,6 +48,12 @@ export default function App() {
         <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
         <Route path="/admin/servicos" element={<AdminServicosPage />} />
         <Route path="/admin/agendamentos" element={<AdminAgendamentosPage />} />
+        <Route path="/admin/barbeiros" element={<AdminBarbeirosPage />} />
+        <Route path="/admin/clientes" element={<AdminClientesPage />} />
+        <Route path="/admin/horarios" element={<AdminHorariosPage />} />
+        <Route path="/admin/configuracoes" element={<AdminConfiguracoesPage />} />
+        
+        {/* Catch all for admin to dashboard, others to home */}
         <Route path="/admin/*" element={<AdminDashboardPage />} />
       </Routes>
     </Layout>

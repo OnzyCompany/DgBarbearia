@@ -32,30 +32,50 @@ export default function AdminServicosPage() {
 
   // Real-time listener for services
   useEffect(() => {
-    if (!db) return;
+    // Check if DB is initialized properly (not a mock object)
+    if (!db || !db.app) { 
+        setLoading(false);
+        return; 
+    }
     
-    const q = query(collection(db, 'servicos'), orderBy('nome'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const servicosData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Servico[];
-      setServicos(servicosData);
-      setLoading(false);
-    });
+    try {
+        const q = query(collection(db, 'servicos'), orderBy('nome'));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+          const servicosData = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          })) as Servico[];
+          setServicos(servicosData);
+          setLoading(false);
+        }, (error) => {
+            console.error("Erro ao ler serviços:", error);
+            setLoading(false);
+        });
 
-    return () => unsubscribe();
+        return () => unsubscribe();
+    } catch (e) {
+        console.error("Erro setup listener:", e);
+        setLoading(false);
+    }
   }, []);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.nome || !formData.preco || !formData.duracao) return;
+    if (!formData.nome || !formData.preco || !formData.duracao) {
+        toast.error("Preencha todos os campos");
+        return;
+    }
+
+    if (!db || !db.app) {
+        toast.error("Banco de dados não conectado. Verifique a configuração.");
+        return;
+    }
 
     try {
       await addDoc(collection(db, 'servicos'), {
         nome: formData.nome,
-        preco: Number(formData.preco),
-        duracao: Number(formData.duracao),
+        preco: Number(formData.preco), // Ensure it's a number
+        duracao: Number(formData.duracao), // Ensure it's a number
         categoria: formData.categoria,
         createdAt: new Date()
       });
@@ -64,8 +84,8 @@ export default function AdminServicosPage() {
       setIsModalOpen(false);
       setFormData({ nome: '', preco: '', duracao: '', categoria: 'corte' });
     } catch (error) {
-      console.error(error);
-      toast.error('Erro ao salvar serviço');
+      console.error("Erro ao salvar:", error);
+      toast.error('Erro ao salvar no banco de dados. Tente novamente.');
     }
   };
 
