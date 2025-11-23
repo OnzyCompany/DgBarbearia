@@ -1,10 +1,9 @@
-
 'use client';
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Send, Zap, BrainCircuit, X } from 'lucide-react';
-import { ConsultMode } from '../../types';
+import { ConsultMode } from '../../types/index';
 import { GoogleGenAI } from "@google/genai";
 
 export const StyleConsultant: React.FC = () => {
@@ -21,7 +20,16 @@ export const StyleConsultant: React.FC = () => {
 
     try {
       // Direct client-side call since API routes aren't available in this preview
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+      // Use process.env.API_KEY injected via shim or environment
+      const apiKey = process.env.API_KEY;
+      
+      if (!apiKey) {
+        setResponse("API Key is missing. Please configure it in the environment.");
+        setLoading(false);
+        return;
+      }
+
+      const ai = new GoogleGenAI({ apiKey });
       
       let modelName = 'gemini-2.5-flash-lite-latest'; // Fast mode
       let config: any = {

@@ -4,33 +4,23 @@ import RootLayout from './app/layout';
 import HomePage from './app/page';
 import AgendarPage from './app/(cliente)/agendar/page';
 
-// Mock Router to handle navigation in this preview environment
+// Custom Router that listens to internal events instead of window.location
+// This prevents 'Blocked by response' errors in sandboxed iframes
 const Router = () => {
-  const [path, setPath] = useState(window.location.pathname);
+  const [path, setPath] = useState('/');
 
   useEffect(() => {
-    const handlePopState = () => {
-      setPath(window.location.pathname);
+    const handleNavigation = (e: CustomEvent) => {
+      setPath(e.detail);
+      // Scroll to top on navigation
+      window.scrollTo(0, 0);
     };
 
-    // Intercept link clicks to prevent full page reloads where possible
-    const handleClick = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      const anchor = target.closest('a');
-      if (anchor && anchor.href && anchor.href.startsWith(window.location.origin)) {
-        e.preventDefault();
-        const newPath = anchor.getAttribute('href') || '/';
-        window.history.pushState({}, '', newPath);
-        setPath(newPath);
-      }
-    };
-
-    window.addEventListener('popstate', handlePopState);
-    document.addEventListener('click', handleClick);
+    // Listen to our custom navigation event
+    window.addEventListener('app-navigate', handleNavigation as EventListener);
 
     return () => {
-      window.removeEventListener('popstate', handlePopState);
-      document.removeEventListener('click', handleClick);
+      window.removeEventListener('app-navigate', handleNavigation as EventListener);
     };
   }, []);
 

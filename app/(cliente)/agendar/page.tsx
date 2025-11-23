@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -35,8 +34,9 @@ export default function AgendarPage() {
   const voltar = () => setEtapaAtual((e) => Math.max(e - 1, 1));
   
   const navigateHome = () => {
-    window.history.pushState({}, '', '/');
-    window.dispatchEvent(new Event('popstate'));
+    // Dispatch custom event for internal routing without changing URL
+    const event = new CustomEvent('app-navigate', { detail: '/' });
+    window.dispatchEvent(event);
   };
 
   return (

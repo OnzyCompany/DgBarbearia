@@ -1,4 +1,3 @@
-
 'use client';
 
 import { motion } from 'framer-motion';
@@ -7,8 +6,9 @@ import { StyleConsultant } from '../components/ai/StyleConsultant';
 
 export default function HomePage() {
   const navigateToSchedule = () => {
-    window.history.pushState({}, '', '/agendar');
-    window.dispatchEvent(new Event('popstate'));
+    // Dispatch custom event for internal routing without changing URL
+    const event = new CustomEvent('app-navigate', { detail: '/agendar' });
+    window.dispatchEvent(event);
   };
 
   return (

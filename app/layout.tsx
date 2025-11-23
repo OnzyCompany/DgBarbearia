@@ -1,11 +1,5 @@
-
 import React from 'react';
 import { Toaster } from 'react-hot-toast';
-
-export const metadata = {
-  title: 'NextBarber Pro',
-  description: 'Agendamento premium para barbearias',
-};
 
 export default function RootLayout({
   children,

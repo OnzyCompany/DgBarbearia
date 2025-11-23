@@ -6,6 +6,20 @@
   <title>NextBarber Pro</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
+    // Shim process for client-side environment
+    window.process = {
+      env: {
+        NODE_ENV: 'development',
+        NEXT_PUBLIC_FIREBASE_API_KEY: 'mock_key',
+        NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: 'mock.firebaseapp.com',
+        NEXT_PUBLIC_FIREBASE_PROJECT_ID: 'mock-project',
+        NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: 'mock.appspot.com',
+        NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: '123456789',
+        NEXT_PUBLIC_FIREBASE_APP_ID: '1:123456789:web:mock',
+        API_KEY: '' // User will provide this via other means or it will fail gracefully
+      }
+    };
+    
     tailwind.config = {
       theme: {
         extend: {
@@ -51,7 +65,7 @@
       "react": "https://aistudiocdn.com/react@^19.2.0",
       "react-hot-toast": "https://aistudiocdn.com/react-hot-toast@^2.6.0",
       "tailwindcss": "https://aistudiocdn.com/tailwindcss@^4.1.17",
-      "firebase/": "https://aistudiocdn.com/firebase@^12.6.0/",
+      "firebase/": "https://aistudiocdn.com/firebase@^10.12.2/",
       "canvas-confetti": "https://aistudiocdn.com/canvas-confetti@^1.9.4",
       "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/"
     }
