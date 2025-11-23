@@ -1,8 +1,11 @@
+
 import React from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import HomePage from './page';
 import AgendarPage from './(cliente)/agendar/page';
+import AdminLoginPage from './(admin)/admin/page';
+import AdminDashboardPage from './(admin)/admin/dashboard/page';
 
 // Layout wrapper to apply global styles and providers
 const Layout = ({ children }: { children: React.ReactNode }) => {
@@ -33,6 +36,11 @@ export default function App() {
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/agendar" element={<AgendarPage />} />
+        
+        {/* Admin Routes */}
+        <Route path="/admin" element={<AdminLoginPage />} />
+        <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
+        <Route path="/admin/*" element={<AdminDashboardPage />} /> {/* Fallback for other admin routes for now */}
       </Routes>
     </Layout>
   );
