@@ -27,6 +27,9 @@ export default function AdminDashboardPage() {
 
         // 1. Agendamentos de Hoje
         const agendamentosRef = collection(db, 'agendamentos');
+        // Note: Firestore queries require composite indexes for multiple fields. 
+        // For simplicity/robustness without indexes, we fetch simpler queries or client-side filter if volume is low.
+        // Here we try a simple query. If it fails due to index, we might need to adjust.
         const qHoje = query(agendamentosRef, where('data', '==', dateString));
         const snapshotHoje = await getDocs(qHoje);
         
@@ -39,7 +42,7 @@ export default function AdminDashboardPage() {
           faturamento += Number(data.preco || 0);
         });
 
-        // 3. Novos Clientes (Total por enquanto, já que não temos created_at no filtro simples)
+        // 3. Novos Clientes (Total)
         const clientesRef = collection(db, 'clientes');
         const snapshotClientes = await getDocs(clientesRef);
         const countClientes = snapshotClientes.size;
