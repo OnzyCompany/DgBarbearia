@@ -1,9 +1,9 @@
 'use client';
 
+import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { CheckCircle, Calendar, Clock, Scissors, Sparkles } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { useEffect } from 'react';
 import { Agendamento } from '@/types';
 
 interface Props {

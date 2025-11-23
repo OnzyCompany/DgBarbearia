@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import RootLayout from './app/layout';
@@ -51,8 +50,6 @@ if (!rootElement) throw new Error('Failed to find the root element');
 const root = createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <RootLayout>
-      <Router />
-    </RootLayout>
+    <RootLayout children={<Router />} />
   </React.StrictMode>
 );

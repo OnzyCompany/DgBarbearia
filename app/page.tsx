@@ -1,8 +1,8 @@
+
 'use client';
 
 import { motion } from 'framer-motion';
 import { Calendar, Clock, Star, MapPin } from 'lucide-react';
-import Link from 'next/link';
 import { StyleConsultant } from '@/components/ai/StyleConsultant';
 
 export default function HomePage() {
@@ -69,7 +69,7 @@ export default function HomePage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.5, duration: 0.8 }}
           >
-            <Link href="/agendar">
+            <a href="/agendar">
               <motion.button
                 whileHover={{ scale: 1.05, boxShadow: '0 0 30px rgba(212, 168, 83, 0.5)' }}
                 whileTap={{ scale: 0.95 }}
@@ -78,7 +78,7 @@ export default function HomePage() {
                 <Calendar className="w-5 h-5" />
                 Agendar Agora
               </motion.button>
-            </Link>
+            </a>
           </motion.div>
 
           {/* Info Cards */}

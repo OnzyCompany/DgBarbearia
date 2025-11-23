@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -5,7 +6,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useBookingStore } from '@/stores/bookingStore';
 import { BookingSuccessAnimation } from '@/components/cliente/BookingSuccessAnimation';
 import { ArrowLeft, Check, Scissors, Users, Calendar, Clock } from 'lucide-react';
-import Link from 'next/link';
 
 const ETAPAS = [
   { id: 1, nome: 'Serviço' },
@@ -39,11 +39,19 @@ export default function AgendarPage() {
       {/* Header */}
       <header className="sticky top-0 z-40 bg-dark/95 backdrop-blur-sm border-b border-white/5 px-4 py-4">
         <div className="max-w-lg mx-auto flex items-center gap-4">
-          <Link href={etapaAtual === 1 ? "/" : "#"} onClick={etapaAtual > 1 ? voltar : undefined}>
+          <a 
+            href={etapaAtual === 1 ? "/" : "#"} 
+            onClick={(e) => {
+              if (etapaAtual > 1) {
+                e.preventDefault();
+                voltar();
+              }
+            }}
+          >
             <button className="p-2 rounded-full bg-dark-card text-white border border-white/10">
               <ArrowLeft className="w-5 h-5" />
             </button>
-          </Link>
+          </a>
           <h1 className="text-xl font-bold text-white">Agendar Horário</h1>
         </div>
 
@@ -240,7 +248,9 @@ export default function AgendarPage() {
             dados={dadosAgendamento}
             onComplete={() => {
               limparDados();
-              window.location.href = '/';
+              // Soft navigation to home
+              window.history.pushState({}, '', '/');
+              window.dispatchEvent(new Event('popstate'));
             }}
           />
         )}
