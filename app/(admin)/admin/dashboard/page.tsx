@@ -1,12 +1,12 @@
+
 'use client';
 
 import React, { useEffect, useState } from 'react';
 import { Sidebar } from '../../../../components/admin/Sidebar';
 import { motion } from 'framer-motion';
 import { Users, Calendar, DollarSign, TrendingUp, Loader2 } from 'lucide-react';
-import { collection, query, where, getDocs, Timestamp } from 'firebase/auth'; // Mistake in import source, fixing below
 import { db } from '../../../../lib/firebase';
-import { collection as firestoreCollection, query as firestoreQuery, where as firestoreWhere, getDocs as firestoreGetDocs, orderBy, limit } from 'firebase/firestore';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState({
@@ -26,9 +26,9 @@ export default function AdminDashboardPage() {
         const dateString = today.toISOString().split('T')[0]; // YYYY-MM-DD for comparison
 
         // 1. Agendamentos de Hoje
-        const agendamentosRef = firestoreCollection(db, 'agendamentos');
-        const qHoje = firestoreQuery(agendamentosRef, firestoreWhere('data', '==', dateString));
-        const snapshotHoje = await firestoreGetDocs(qHoje);
+        const agendamentosRef = collection(db, 'agendamentos');
+        const qHoje = query(agendamentosRef, where('data', '==', dateString));
+        const snapshotHoje = await getDocs(qHoje);
         
         const countHoje = snapshotHoje.size;
         
@@ -40,8 +40,8 @@ export default function AdminDashboardPage() {
         });
 
         // 3. Novos Clientes (Total por enquanto, já que não temos created_at no filtro simples)
-        const clientesRef = firestoreCollection(db, 'clientes');
-        const snapshotClientes = await firestoreGetDocs(clientesRef);
+        const clientesRef = collection(db, 'clientes');
+        const snapshotClientes = await getDocs(clientesRef);
         const countClientes = snapshotClientes.size;
 
         // 4. Ticket Médio
@@ -104,7 +104,6 @@ export default function AdminDashboardPage() {
                             <div className="p-3 rounded-xl bg-[#252525] text-white">
                                 <stat.icon className="w-5 h-5" style={{ color: stat.color }} />
                             </div>
-                            {/* <span className="text-xs text-gray-500 font-medium">Atualizado agora</span> */}
                         </div>
                         <h3 className="text-gray-400 text-sm mb-1">{stat.title}</h3>
                         <p className="text-2xl font-bold text-white">{stat.value}</p>
