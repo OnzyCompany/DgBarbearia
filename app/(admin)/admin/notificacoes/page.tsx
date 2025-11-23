@@ -58,7 +58,8 @@ export default function AdminNotificacoesPage() {
 
   const gerarLink = (telefone: string) => {
       const num = telefone.replace(/\D/g, '');
-      return `https://wa.me/55${num}?text=${encodeURIComponent(mensagem)}`;
+      // Usa api.whatsapp.com para maior compatibilidade desktop
+      return `https://api.whatsapp.com/send?phone=55${num}&text=${encodeURIComponent(mensagem)}`;
   };
 
   const handleEnviarWhatsApp = (cliente: any) => {
