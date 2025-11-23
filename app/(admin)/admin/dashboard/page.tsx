@@ -4,9 +4,10 @@
 import React, { useEffect, useState } from 'react';
 import { Sidebar } from '../../../../components/admin/Sidebar';
 import { motion } from 'framer-motion';
-import { Users, Calendar, DollarSign, TrendingUp, Loader2 } from 'lucide-react';
+import { Users, Calendar, DollarSign, TrendingUp, Loader2, Database } from 'lucide-react';
 import { db } from '../../../../lib/firebase';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc } from 'firebase/firestore';
+import toast from 'react-hot-toast';
 
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState({
@@ -23,13 +24,10 @@ export default function AdminDashboardPage() {
         if (!db) return;
 
         const today = new Date();
-        const dateString = today.toISOString().split('T')[0]; // YYYY-MM-DD for comparison
+        const dateString = today.toISOString().split('T')[0];
 
         // 1. Agendamentos de Hoje
         const agendamentosRef = collection(db, 'agendamentos');
-        // Note: Firestore queries require composite indexes for multiple fields. 
-        // For simplicity/robustness without indexes, we fetch simpler queries or client-side filter if volume is low.
-        // Here we try a simple query. If it fails due to index, we might need to adjust.
         const qHoje = query(agendamentosRef, where('data', '==', dateString));
         const snapshotHoje = await getDocs(qHoje);
         
@@ -42,7 +40,7 @@ export default function AdminDashboardPage() {
           faturamento += Number(data.preco || 0);
         });
 
-        // 3. Novos Clientes (Total)
+        // 3. Novos Clientes
         const clientesRef = collection(db, 'clientes');
         const snapshotClientes = await getDocs(clientesRef);
         const countClientes = snapshotClientes.size;
@@ -67,6 +65,43 @@ export default function AdminDashboardPage() {
     fetchDashboardData();
   }, []);
 
+  const handleSeedData = async () => {
+    if(!window.confirm("Isso irá criar dados de exemplo no banco de dados. Continuar?")) return;
+    
+    setLoading(true);
+    try {
+        // Serviços Iniciais
+        const servicos = [
+            { nome: 'Corte Masculino', preco: 50, duracao: 45, categoria: 'corte' },
+            { nome: 'Barba Completa', preco: 40, duracao: 30, categoria: 'barba' },
+            { nome: 'Combo Corte + Barba', preco: 80, duracao: 75, categoria: 'combo' }
+        ];
+
+        for (const s of servicos) {
+            await addDoc(collection(db, 'servicos'), s);
+        }
+
+        // Barbeiros Iniciais
+        const barbeiros = [
+            { nome: 'Carlos Silva', especialidade: 'Degradê' },
+            { nome: 'João Souza', especialidade: 'Barba' }
+        ];
+
+        for (const b of barbeiros) {
+            await addDoc(collection(db, 'barbeiros'), b);
+        }
+
+        toast.success("Dados iniciais criados com sucesso!");
+        window.location.reload();
+
+    } catch (e) {
+        console.error(e);
+        toast.error("Erro ao criar dados. Verifique as regras do Firebase.");
+    } finally {
+        setLoading(false);
+    }
+  };
+
   return (
     <div className="flex h-screen bg-[#0D0D0D]">
       <Sidebar />
@@ -77,8 +112,17 @@ export default function AdminDashboardPage() {
                 <h2 className="text-2xl font-bold text-white">Dashboard</h2>
                 <p className="text-gray-400">Visão geral em tempo real</p>
             </div>
-            <div className="text-right">
-                <p className="text-sm text-gray-400">{new Date().toLocaleDateString()}</p>
+            <div className="flex gap-4 items-center">
+                <button 
+                    onClick={handleSeedData}
+                    className="text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 px-3 py-2 rounded-lg flex items-center gap-2 transition-colors"
+                >
+                    <Database className="w-3 h-3" />
+                    Inicializar Dados
+                </button>
+                <div className="text-right">
+                    <p className="text-sm text-gray-400">{new Date().toLocaleDateString()}</p>
+                </div>
             </div>
         </header>
 

@@ -1,11 +1,15 @@
+
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useBookingStore } from '../../../stores/bookingStore';
 import { BookingSuccessAnimation } from '../../../components/cliente/BookingSuccessAnimation';
-import { ArrowLeft, Check, Scissors, Users } from 'lucide-react';
+import { ArrowLeft, Check, Scissors, Users, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { collection, getDocs, query, orderBy } from 'firebase/firestore';
+import { db } from '../../../lib/firebase';
+import toast from 'react-hot-toast';
 
 const ETAPAS = [
   { id: 1, nome: 'Serviço' },
@@ -14,23 +18,47 @@ const ETAPAS = [
   { id: 4, nome: 'Confirmação' },
 ];
 
-// Mock Data
-const SERVICOS = [
-  { id: '1', nome: 'Corte Masculino', preco: 50, duracao: 45, icon: Scissors },
-  { id: '2', nome: 'Barba Completa', preco: 40, duracao: 30, icon: Users },
-  { id: '3', nome: 'Combo Corte + Barba', preco: 80, duracao: 75, icon: Scissors },
-];
-
-const BARBEIROS = [
-  { id: '1', nome: 'Carlos Silva', especialidade: 'Degradê' },
-  { id: '2', nome: 'João Souza', especialidade: 'Barba' },
-];
-
 export default function AgendarPage() {
   const navigate = useNavigate();
   const [etapaAtual, setEtapaAtual] = useState(1);
   const [sucesso, setSucesso] = useState(false);
   const { dadosAgendamento, setServico, setBarbeiro, setDataHorario, limparDados } = useBookingStore();
+  
+  // Data from Firebase
+  const [servicos, setServicos] = useState<any[]>([]);
+  const [barbeiros, setBarbeiros] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch Data
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        if (!db) return;
+        
+        // Fetch Serviços
+        const servicosRef = collection(db, 'servicos');
+        const qServicos = query(servicosRef, orderBy('nome'));
+        const servicosSnap = await getDocs(qServicos);
+        const servicosData = servicosSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setServicos(servicosData);
+
+        // Fetch Barbeiros
+        const barbeirosRef = collection(db, 'barbeiros');
+        const qBarbeiros = query(barbeirosRef, orderBy('nome'));
+        const barbeirosSnap = await getDocs(qBarbeiros);
+        const barbeirosData = barbeirosSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setBarbeiros(barbeirosData);
+
+      } catch (error) {
+        console.error("Erro ao carregar dados:", error);
+        toast.error("Erro ao carregar dados da barbearia");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
 
   const avancar = () => setEtapaAtual((e) => Math.min(e + 1, 4));
   const voltar = () => setEtapaAtual((e) => Math.max(e - 1, 1));
@@ -38,6 +66,14 @@ export default function AgendarPage() {
   const navigateHome = () => {
     navigate('/');
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-dark flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-gold animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-dark pb-24">
@@ -108,32 +144,36 @@ export default function AgendarPage() {
               className="grid gap-4"
             >
               <h2 className="text-2xl font-bold mb-4">Escolha o Serviço</h2>
-              {SERVICOS.map((servico) => (
-                <motion.button
-                  key={servico.id}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => {
-                    setServico(servico.id, servico.nome, servico.preco);
-                    avancar();
-                  }}
-                  className={`w-full p-4 rounded-2xl border flex items-center justify-between transition-colors ${
-                    dadosAgendamento.servicoId === servico.id
-                      ? 'bg-gold/10 border-gold'
-                      : 'bg-dark-card border-white/5 hover:border-white/20'
-                  }`}
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-dark flex items-center justify-center text-gold">
-                      <servico.icon className="w-6 h-6" />
+              {servicos.length === 0 ? (
+                <p className="text-gray-500 text-center py-10">Nenhum serviço disponível no momento.</p>
+              ) : (
+                servicos.map((servico) => (
+                  <motion.button
+                    key={servico.id}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => {
+                      setServico(servico.id, servico.nome, servico.preco);
+                      avancar();
+                    }}
+                    className={`w-full p-4 rounded-2xl border flex items-center justify-between transition-colors ${
+                      dadosAgendamento.servicoId === servico.id
+                        ? 'bg-gold/10 border-gold'
+                        : 'bg-dark-card border-white/5 hover:border-white/20'
+                    }`}
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-xl bg-dark flex items-center justify-center text-gold">
+                        <Scissors className="w-6 h-6" />
+                      </div>
+                      <div className="text-left">
+                        <h3 className="font-bold text-white">{servico.nome}</h3>
+                        <p className="text-gray-500 text-sm">{servico.duracao} min</p>
+                      </div>
                     </div>
-                    <div className="text-left">
-                      <h3 className="font-bold text-white">{servico.nome}</h3>
-                      <p className="text-gray-500 text-sm">{servico.duracao} min</p>
-                    </div>
-                  </div>
-                  <span className="font-bold text-gold">R$ {servico.preco}</span>
-                </motion.button>
-              ))}
+                    <span className="font-bold text-gold">R$ {servico.preco}</span>
+                  </motion.button>
+                ))
+              )}
             </motion.div>
           )}
 
@@ -146,27 +186,33 @@ export default function AgendarPage() {
               className="grid gap-4"
             >
               <h2 className="text-2xl font-bold mb-4">Escolha o Profissional</h2>
-              {BARBEIROS.map((barbeiro) => (
-                <motion.button
-                  key={barbeiro.id}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => {
-                    setBarbeiro(barbeiro.id, barbeiro.nome);
-                    avancar();
-                  }}
-                  className={`w-full p-4 rounded-2xl border flex items-center gap-4 transition-colors ${
-                    dadosAgendamento.barbeiroId === barbeiro.id
-                      ? 'bg-gold/10 border-gold'
-                      : 'bg-dark-card border-white/5 hover:border-white/20'
-                  }`}
-                >
-                  <div className="w-14 h-14 rounded-full bg-gray-700 border-2 border-gold/50" />
-                  <div className="text-left">
-                    <h3 className="font-bold text-white">{barbeiro.nome}</h3>
-                    <p className="text-gray-500 text-sm">Especialista em {barbeiro.especialidade}</p>
-                  </div>
-                </motion.button>
-              ))}
+              {barbeiros.length === 0 ? (
+                <p className="text-gray-500 text-center py-10">Nenhum profissional disponível.</p>
+              ) : (
+                barbeiros.map((barbeiro) => (
+                  <motion.button
+                    key={barbeiro.id}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => {
+                      setBarbeiro(barbeiro.id, barbeiro.nome);
+                      avancar();
+                    }}
+                    className={`w-full p-4 rounded-2xl border flex items-center gap-4 transition-colors ${
+                      dadosAgendamento.barbeiroId === barbeiro.id
+                        ? 'bg-gold/10 border-gold'
+                        : 'bg-dark-card border-white/5 hover:border-white/20'
+                    }`}
+                  >
+                    <div className="w-14 h-14 rounded-full bg-gray-700 border-2 border-gold/50 flex items-center justify-center">
+                        <Users className="w-6 h-6 text-gray-400" />
+                    </div>
+                    <div className="text-left">
+                      <h3 className="font-bold text-white">{barbeiro.nome}</h3>
+                      <p className="text-gray-500 text-sm">{barbeiro.especialidade || 'Barbeiro'}</p>
+                    </div>
+                  </motion.button>
+                ))
+              )}
             </motion.div>
           )}
 
@@ -180,22 +226,22 @@ export default function AgendarPage() {
             >
               <h2 className="text-2xl font-bold">Escolha o Horário</h2>
               
-              {/* Mock Date Picker */}
+              {/* Mock Date Picker (In real app, generate from working hours) */}
               <div className="flex gap-2 overflow-x-auto pb-4">
                 {[...Array(7)].map((_, i) => (
                   <button key={i} className={`flex-shrink-0 w-16 h-20 rounded-xl flex flex-col items-center justify-center border ${i === 0 ? 'bg-gold text-dark border-gold' : 'bg-dark-card border-white/5 text-gray-400'}`}>
-                    <span className="text-xs font-bold uppercase">OUT</span>
-                    <span className="text-xl font-bold">{20 + i}</span>
+                    <span className="text-xs font-bold uppercase">HOJE</span>
+                    <span className="text-xl font-bold">{new Date().getDate() + i}</span>
                   </button>
                 ))}
               </div>
 
               <div className="grid grid-cols-3 gap-3">
-                {['09:00', '10:00', '11:00', '14:00', '15:00', '16:00'].map((time) => (
+                {['09:00', '10:00', '11:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00'].map((time) => (
                   <button
                     key={time}
                     onClick={() => {
-                      setDataHorario('2023-10-20', time);
+                      setDataHorario(new Date().toISOString().split('T')[0], time);
                       avancar();
                     }}
                     className="py-3 rounded-lg bg-dark-card border border-white/5 hover:border-gold/50 hover:text-gold transition-colors text-sm font-medium"
