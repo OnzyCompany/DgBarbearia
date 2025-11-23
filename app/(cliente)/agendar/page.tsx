@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -33,25 +32,29 @@ export default function AgendarPage() {
 
   const avancar = () => setEtapaAtual((e) => Math.min(e + 1, 4));
   const voltar = () => setEtapaAtual((e) => Math.max(e - 1, 1));
+  
+  const navigateHome = () => {
+    window.history.pushState({}, '', '/');
+    window.dispatchEvent(new Event('popstate'));
+  };
 
   return (
     <main className="min-h-screen bg-dark pb-24">
       {/* Header */}
       <header className="sticky top-0 z-40 bg-dark/95 backdrop-blur-sm border-b border-white/5 px-4 py-4">
         <div className="max-w-lg mx-auto flex items-center gap-4">
-          <a 
-            href={etapaAtual === 1 ? "/" : "#"} 
-            onClick={(e) => {
+          <button 
+            onClick={() => {
               if (etapaAtual > 1) {
-                e.preventDefault();
                 voltar();
+              } else {
+                navigateHome();
               }
             }}
+            className="p-2 rounded-full bg-dark-card text-white border border-white/10 hover:bg-dark-card/80 transition-colors"
           >
-            <button className="p-2 rounded-full bg-dark-card text-white border border-white/10">
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-          </a>
+            <ArrowLeft className="w-5 h-5" />
+          </button>
           <h1 className="text-xl font-bold text-white">Agendar Horário</h1>
         </div>
 
@@ -248,9 +251,7 @@ export default function AgendarPage() {
             dados={dadosAgendamento}
             onComplete={() => {
               limparDados();
-              // Soft navigation to home
-              window.history.pushState({}, '', '/');
-              window.dispatchEvent(new Event('popstate'));
+              navigateHome();
             }}
           />
         )}

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { motion } from 'framer-motion';
@@ -6,6 +5,11 @@ import { Calendar, Clock, Star, MapPin } from 'lucide-react';
 import { StyleConsultant } from '@/components/ai/StyleConsultant';
 
 export default function HomePage() {
+  const navigateToSchedule = () => {
+    window.history.pushState({}, '', '/agendar');
+    window.dispatchEvent(new Event('popstate'));
+  };
+
   return (
     <main className="min-h-screen bg-dark">
       <StyleConsultant />
@@ -69,16 +73,15 @@ export default function HomePage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.5, duration: 0.8 }}
           >
-            <a href="/agendar">
-              <motion.button
-                whileHover={{ scale: 1.05, boxShadow: '0 0 30px rgba(212, 168, 83, 0.5)' }}
-                whileTap={{ scale: 0.95 }}
-                className="bg-gradient-to-r from-gold to-gold-light text-dark w-full max-w-xs py-4 px-8 rounded-2xl font-bold text-lg flex items-center justify-center gap-3 mx-auto"
-              >
-                <Calendar className="w-5 h-5" />
-                Agendar Agora
-              </motion.button>
-            </a>
+            <motion.button
+              onClick={navigateToSchedule}
+              whileHover={{ scale: 1.05, boxShadow: '0 0 30px rgba(212, 168, 83, 0.5)' }}
+              whileTap={{ scale: 0.95 }}
+              className="bg-gradient-to-r from-gold to-gold-light text-dark w-full max-w-xs py-4 px-8 rounded-2xl font-bold text-lg flex items-center justify-center gap-3 mx-auto cursor-pointer"
+            >
+              <Calendar className="w-5 h-5" />
+              Agendar Agora
+            </motion.button>
           </motion.div>
 
           {/* Info Cards */}
