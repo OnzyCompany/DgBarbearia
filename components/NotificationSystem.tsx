@@ -46,11 +46,8 @@ export function NotificationSystem() {
         setPermissionState(permission);
         
         if (permission === 'granted') {
-          // Teste imediato
-          new Notification('NextBarber Pro', {
-            body: 'Notificações Ativadas com Sucesso! 🔔',
-            icon: 'https://cdn-icons-png.flaticon.com/512/1000/1000627.png',
-          });
+          // Teste imediato via Service Worker se disponível
+          showNativeNotification('NextBarber Pro', 'Notificações Ativadas com Sucesso! 🔔');
           audioRef.current.play();
           toast.success("Sistema de Notificação Ativo!");
         } else {
@@ -84,7 +81,7 @@ export function NotificationSystem() {
     }
   };
 
-  const showNativeNotification = (titulo: string, corpo: string, urlDestino?: string) => {
+  const showNativeNotification = async (titulo: string, corpo: string, urlDestino?: string) => {
       // 1. Toast Visual (Dentro do Site)
       toast(corpo, {
         icon: '🔔',
@@ -97,23 +94,37 @@ export function NotificationSystem() {
         },
       });
 
-      // 2. Notificação do Sistema (Fora do Site - Windows/Android)
+      // 2. Notificação do Sistema (Fora do Site) via Service Worker ou API Nativa
       if ('Notification' in window && Notification.permission === 'granted') {
           try {
-              const notif = new Notification(titulo, {
-                  body: corpo,
-                  icon: 'https://cdn-icons-png.flaticon.com/512/1000/1000627.png',
-                  requireInteraction: true, 
-                  tag: 'nextbarber-alert'
-              });
-
-              if (urlDestino) {
-                  notif.onclick = (e) => {
-                      e.preventDefault();
-                      window.focus();
-                      navigate(urlDestino);
-                      notif.close();
-                  };
+              // Tenta usar o Service Worker para notificações mais robustas (Mobile)
+              const registration = await navigator.serviceWorker?.getRegistration();
+              
+              if (registration && 'showNotification' in registration) {
+                  await registration.showNotification(titulo, {
+                      body: corpo,
+                      icon: 'https://cdn-icons-png.flaticon.com/512/1000/1000627.png',
+                      vibrate: [200, 100, 200],
+                      tag: 'nextbarber-alert',
+                      data: { url: urlDestino || '/' }
+                  } as any);
+              } else {
+                  // Fallback para API desktop padrão
+                  const notif = new Notification(titulo, {
+                      body: corpo,
+                      icon: 'https://cdn-icons-png.flaticon.com/512/1000/1000627.png',
+                      requireInteraction: true, 
+                      tag: 'nextbarber-alert'
+                  });
+                  
+                  if (urlDestino) {
+                      notif.onclick = (e) => {
+                          e.preventDefault();
+                          window.focus();
+                          navigate(urlDestino);
+                          notif.close();
+                      };
+                  }
               }
           } catch (e) {
               console.error("Erro na notificação nativa:", e);
@@ -158,7 +169,8 @@ export function NotificationSystem() {
                     const data = change.doc.data();
                     const dataCriacao = data.criadoEm?.toDate ? data.criadoEm.toDate() : new Date(data.criadoEm);
                     
-                    if (dataCriacao > mountTime && data.status === 'pendente') {
+                    // Ajuste: Status pode ser pendente ou confirmado, o importante é que é novo
+                    if (dataCriacao > mountTime) {
                         playAlert();
                         showNativeNotification(
                             'Novo Agendamento! ✂️', 
