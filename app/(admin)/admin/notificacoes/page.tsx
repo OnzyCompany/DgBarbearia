@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Sidebar } from '../../../../components/admin/Sidebar';
-import { MessageSquare, Users, Send, Bell, Radio, Volume2 } from 'lucide-react';
+import { MessageSquare, Users, Send, Bell, Radio, Volume2, CheckCircle, AlertTriangle } from 'lucide-react';
 import { collection, query, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../../lib/firebase';
 import toast from 'react-hot-toast';
@@ -28,7 +28,7 @@ export default function AdminNotificacoesPage() {
   const [clientes, setClientes] = useState<any[]>([]);
   const [mensagem, setMensagem] = useState('');
   const [tituloPush, setTituloPush] = useState('');
-  const [selecionados, setSelecionados] = useState<string[]>([]);
+  const [somAtivo, setSomAtivo] = useState(false);
   
   useEffect(() => {
     const fetchClientes = async () => {
@@ -41,6 +41,11 @@ export default function AdminNotificacoesPage() {
         } catch(e) { console.error(e); }
     };
     fetchClientes();
+    
+    // Check permission status
+    if ('Notification' in window && Notification.permission === 'granted') {
+        setSomAtivo(true);
+    }
   }, []);
 
   const handleEnviarWhatsApp = (cliente: any) => {
@@ -72,7 +77,12 @@ export default function AdminNotificacoesPage() {
 
   const ativarSom = () => {
       // @ts-ignore
-      if (window.enableAppAudio) window.enableAppAudio();
+      if (window.enableAppAudio) {
+          // @ts-ignore
+          window.enableAppAudio((success) => {
+              setSomAtivo(success);
+          });
+      }
   };
 
   return (
@@ -84,12 +94,17 @@ export default function AdminNotificacoesPage() {
             <h2 className="text-2xl font-bold text-white">Central de Notificações</h2>
             <p className="text-gray-400">Comunique-se com seus clientes</p>
           </div>
+          
           <button 
              onClick={ativarSom}
-             className="text-xs bg-gray-800 text-gold border border-gold/30 px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-gray-700 transition-colors"
+             className={`text-xs px-4 py-2 rounded-lg flex items-center gap-2 transition-all font-bold border ${
+                 somAtivo 
+                 ? 'bg-green-900/20 text-green-500 border-green-500/50' 
+                 : 'bg-gray-800 text-gray-300 border-gray-600 hover:bg-gray-700 animate-pulse'
+             }`}
           >
-              <Volume2 className="w-4 h-4" />
-              Testar/Ativar Som do Sistema
+              {somAtivo ? <Volume2 className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
+              {somAtivo ? 'Sistema Ativo e Pronto' : 'ATIVAR SOM E ALERTAS'}
           </button>
         </header>
 
@@ -167,11 +182,11 @@ export default function AdminNotificacoesPage() {
                         <Bell className="w-8 h-8 text-[#D4A853]" />
                     </div>
                     <h3 className="text-2xl font-bold text-white mb-2">Notificação Push Global</h3>
-                    <div className="bg-[#252525] p-3 rounded-lg text-xs text-gray-400 mb-6 text-left">
+                    <div className="bg-[#252525] p-3 rounded-lg text-xs text-gray-400 mb-6 text-left border border-white/5">
                         <strong className="text-gold block mb-1">Como funciona?</strong>
-                        1. Clique no botão "Testar/Ativar Som" acima para liberar o navegador.<br/>
-                        2. Clientes devem aceitar a permissão de notificação ao entrar no site.<br/>
-                        3. Ao enviar aqui, um alerta aparecerá na tela de todos, mesmo com o navegador minimizado.
+                        1. Clique no botão "ATIVAR SOM E ALERTAS" no topo da página.<br/>
+                        2. Autorize as notificações quando o navegador pedir.<br/>
+                        3. Ao enviar aqui, um alerta aparecerá na tela de todos os clientes conectados.
                     </div>
 
                     <div className="space-y-4 text-left">

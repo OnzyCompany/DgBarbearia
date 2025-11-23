@@ -8,6 +8,7 @@ import { Users, Calendar, DollarSign, TrendingUp, Loader2, Database } from 'luci
 import { db } from '../../../../lib/firebase';
 import { collection, query, where, getDocs, addDoc } from 'firebase/firestore';
 import toast from 'react-hot-toast';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState({
@@ -16,6 +17,8 @@ export default function AdminDashboardPage() {
     novosClientes: 0,
     ticketMedio: 0
   });
+  const [chartData, setChartData] = useState<any[]>([]);
+  const [nextAppointments, setNextAppointments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -23,33 +26,30 @@ export default function AdminDashboardPage() {
       try {
         if (!db) return;
 
-        // CORREÇÃO: Usar a data local "YYYY-MM-DD" para bater com o que é salvo no agendamento
         const today = new Date();
         const year = today.getFullYear();
         const month = String(today.getMonth() + 1).padStart(2, '0');
         const day = String(today.getDate()).padStart(2, '0');
         const dateString = `${year}-${month}-${day}`;
         
-        console.log("Buscando agendamentos para data:", dateString);
-
-        // 1. Agendamentos de Hoje
+        // 1. Agendamentos de Hoje (Estatísticas Rápidas)
         try {
             const agendamentosRef = collection(db, 'agendamentos');
-            // Busca apenas pela string de data
             const qHoje = query(agendamentosRef, where('data', '==', dateString));
             const snapshotHoje = await getDocs(qHoje);
             
             const countHoje = snapshotHoje.size;
-            
-            // 2. Faturamento do Dia
             let faturamento = 0;
+            const agendamentosHojeList: any[] = [];
+            
             snapshotHoje.docs.forEach(doc => {
               const data = doc.data();
-              // Soma se tiver preço
-              faturamento += Number(data.preco || 0);
+              if (data.status !== 'cancelado') {
+                  faturamento += Number(data.preco || 0);
+                  agendamentosHojeList.push(data);
+              }
             });
 
-             // 4. Ticket Médio
             const ticket = countHoje > 0 ? faturamento / countHoje : 0;
             
              setStats(prev => ({
@@ -58,24 +58,52 @@ export default function AdminDashboardPage() {
                 faturamentoDia: faturamento,
                 ticketMedio: ticket
             }));
+            
+            setNextAppointments(agendamentosHojeList.slice(0, 5));
 
         } catch (e: any) {
-            console.error("Erro leitura dashboard (agendamentos):", e);
-            if(e.code === 'permission-denied') {
-                toast.error("Sem permissão de leitura no banco. Verifique as Regras.", { id: 'perm-error' });
-            }
+            console.error("Erro dashboard:", e);
         }
+
+        // 2. Gráfico da Semana (Últimos 7 dias)
+        try {
+            const last7Days = [];
+            for(let i=6; i>=0; i--) {
+                const d = new Date();
+                d.setDate(today.getDate() - i);
+                const y = d.getFullYear();
+                const m = String(d.getMonth() + 1).padStart(2, '0');
+                const dd = String(d.getDate()).padStart(2, '0');
+                last7Days.push(`${y}-${m}-${dd}`);
+            }
+
+            const chartPromises = last7Days.map(async (dateStr) => {
+                const q = query(collection(db, 'agendamentos'), where('data', '==', dateStr));
+                const snap = await getDocs(q);
+                let total = 0;
+                snap.docs.forEach(d => {
+                    const data = d.data();
+                    if(data.status !== 'cancelado') total += Number(data.preco || 0);
+                });
+                // Formato DD/MM
+                const displayDate = dateStr.split('-').slice(1).reverse().join('/');
+                return { name: displayDate, total };
+            });
+
+            const chartResults = await Promise.all(chartPromises);
+            setChartData(chartResults);
+
+        } catch(e) { console.error("Erro grafico", e); }
 
         // 3. Novos Clientes
         try {
             const clientesRef = collection(db, 'clientes');
             const snapshotClientes = await getDocs(clientesRef);
-            const countClientes = snapshotClientes.size;
-            setStats(prev => ({ ...prev, novosClientes: countClientes }));
+            setStats(prev => ({ ...prev, novosClientes: snapshotClientes.size }));
         } catch(e) { console.error(e) }
 
       } catch (error) {
-        console.error("Erro ao carregar dashboard:", error);
+        console.error("Erro geral:", error);
       } finally {
         setLoading(false);
       }
@@ -85,41 +113,22 @@ export default function AdminDashboardPage() {
   }, []);
 
   const handleSeedData = async () => {
-    if(!window.confirm("Isso irá criar dados de exemplo no banco de dados. Continuar?")) return;
-    
+    if(!window.confirm("Isso irá criar dados de exemplo no banco. Continuar?")) return;
     setLoading(true);
     try {
-        // Serviços Iniciais
         const servicos = [
             { nome: 'Corte Masculino', preco: 50, duracao: 45, categoria: 'corte' },
-            { nome: 'Barba Completa', preco: 40, duracao: 30, categoria: 'barba' },
-            { nome: 'Combo Corte + Barba', preco: 80, duracao: 75, categoria: 'combo' }
+            { nome: 'Barba', preco: 40, duracao: 30, categoria: 'barba' }
         ];
+        for (const s of servicos) await addDoc(collection(db, 'servicos'), s);
+        
+        const barbeiros = [{ nome: 'Carlos Silva', especialidade: 'Degradê' }];
+        for (const b of barbeiros) await addDoc(collection(db, 'barbeiros'), b);
 
-        for (const s of servicos) {
-            await addDoc(collection(db, 'servicos'), s);
-        }
-
-        // Barbeiros Iniciais
-        const barbeiros = [
-            { nome: 'Carlos Silva', especialidade: 'Degradê' },
-            { nome: 'João Souza', especialidade: 'Barba' }
-        ];
-
-        for (const b of barbeiros) {
-            await addDoc(collection(db, 'barbeiros'), b);
-        }
-
-        toast.success("Dados iniciais criados com sucesso!");
+        toast.success("Dados criados!");
         setTimeout(() => window.location.reload(), 1000);
-
     } catch (e: any) {
-        console.error(e);
-        if (e.code === 'permission-denied' || e.message?.includes('permission')) {
-            toast.error("ERRO DE PERMISSÃO: Vá no Firebase Console > Firestore Database > Regras e mude para 'allow read, write: if true;'", { duration: 6000 });
-        } else {
-            toast.error("Erro ao criar dados. Verifique o console.");
-        }
+        toast.error("Erro ao criar dados (Permissão negada?)");
     } finally {
         setLoading(false);
     }
@@ -141,7 +150,7 @@ export default function AdminDashboardPage() {
                     className="text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 px-3 py-2 rounded-lg flex items-center gap-2 transition-colors border border-gray-700"
                 >
                     <Database className="w-3 h-3" />
-                    Inicializar Dados (Seed)
+                    Inicializar Dados
                 </button>
                 <div className="text-right">
                     <p className="text-sm text-gray-400">{new Date().toLocaleDateString()}</p>
@@ -181,15 +190,56 @@ export default function AdminDashboardPage() {
                 ))}
             </div>
 
-            {/* Empty State for other sections */}
+            {/* Charts & Lists */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="bg-[#1A1A1A] p-6 rounded-2xl border border-[#252525] h-64 flex flex-col items-center justify-center text-center">
-                    <p className="text-gray-500 mb-2">Gráfico de Faturamento</p>
-                    <p className="text-xs text-gray-600">Dados insuficientes para gerar gráfico</p>
+                {/* Revenue Chart */}
+                <div className="bg-[#1A1A1A] p-6 rounded-2xl border border-[#252525] h-80 flex flex-col">
+                    <h3 className="text-white font-bold mb-4">Faturamento Semanal</h3>
+                    {chartData.length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={chartData}>
+                                <XAxis dataKey="name" stroke="#666" fontSize={12} />
+                                <YAxis stroke="#666" fontSize={12} />
+                                <Tooltip 
+                                    contentStyle={{ backgroundColor: '#1A1A1A', border: '1px solid #333', borderRadius: '8px' }}
+                                    itemStyle={{ color: '#D4A853' }}
+                                />
+                                <Bar dataKey="total" radius={[4, 4, 0, 0]}>
+                                    {chartData.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill="#D4A853" />
+                                    ))}
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
+                    ) : (
+                        <div className="flex-1 flex items-center justify-center text-gray-500 text-sm">
+                            Sem dados suficientes
+                        </div>
+                    )}
                 </div>
-                <div className="bg-[#1A1A1A] p-6 rounded-2xl border border-[#252525] h-64 flex flex-col items-center justify-center text-center">
-                    <p className="text-gray-500 mb-2">Próximos Agendamentos</p>
-                    <p className="text-xs text-gray-600">Nenhum agendamento futuro encontrado</p>
+
+                {/* Today's Appointments List */}
+                <div className="bg-[#1A1A1A] p-6 rounded-2xl border border-[#252525] h-80 overflow-y-auto custom-scrollbar">
+                    <h3 className="text-white font-bold mb-4">Agenda de Hoje</h3>
+                    {nextAppointments.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center h-40 text-gray-500">
+                             <p className="text-xs">Nenhum agendamento para hoje</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-3">
+                            {nextAppointments.map((ag, i) => (
+                                <div key={i} className="flex justify-between items-center p-3 bg-[#252525] rounded-xl border border-white/5">
+                                    <div>
+                                        <p className="text-white font-medium text-sm">{ag.clienteNome}</p>
+                                        <p className="text-xs text-[#D4A853]">{ag.horario} - {ag.servicoNome}</p>
+                                    </div>
+                                    <span className="text-xs font-bold bg-green-900/30 text-green-500 px-2 py-1 rounded">
+                                        R$ {ag.preco}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             </div>
           </>
