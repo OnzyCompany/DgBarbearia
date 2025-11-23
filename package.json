@@ -22,7 +22,7 @@
     "canvas-confetti": "1.9.3",
     "clsx": "^2.1.1",
     "tailwind-merge": "^2.3.0",
-    "@google/genai": "^0.2.1"
+    "@google/genai": "*"
   },
   "devDependencies": {
     "@types/node": "20.14.2",
