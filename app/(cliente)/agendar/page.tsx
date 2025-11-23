@@ -37,7 +37,7 @@ export default function AgendarPage() {
   // Date Logic
   const [datasDisponiveis, setDatasDisponiveis] = useState<any[]>([]);
   const [horariosGerados, setHorariosGerados] = useState<string[]>([]);
-  const [horariosOcupados, setHorariosOcupados] = useState<string[]>([]); // New State for busy slots
+  const [horariosOcupados, setHorariosOcupados] = useState<string[]>([]); 
   const [dataSelecionadaObj, setDataSelecionadaObj] = useState<Date>(new Date());
   const [loadingHorarios, setLoadingHorarios] = useState(false);
 
@@ -77,9 +77,10 @@ export default function AgendarPage() {
       } catch (error: any) {
         console.error("Erro fatal ao carregar dados:", error);
         if (error.code === 'permission-denied') {
-            toast.error("Modo Offline: Configuração do Banco Pendente");
-            setServicos([{ id: 'demo1', nome: 'Corte Degradê (Demo)', preco: 50, duracao: 45 }]);
-            setBarbeiros([{ id: 'demo1', nome: 'Barbeiro Principal', especialidade: 'Visagismo' }]);
+            toast.error("Modo Offline: Verifique Regras do Firebase");
+            // Fallback mock data
+            setServicos([{ id: 'demo1', nome: 'Corte (Demo)', preco: 50, duracao: 45 }]);
+            setBarbeiros([{ id: 'demo1', nome: 'Barbeiro (Demo)', especialidade: 'Geral' }]);
         }
       } finally {
         setLoading(false);
@@ -89,7 +90,7 @@ export default function AgendarPage() {
     fetchData();
   }, []);
 
-  // Gera datas sempre que a config carrega
+  // Gera datas
   useEffect(() => {
       gerarDatas();
   }, [horariosConfig]);
@@ -113,7 +114,6 @@ export default function AgendarPage() {
               dia: data.getDate(),
               label: label,
               fullDate: dateToLocalString(data),
-              diaSemanaNome: diasSemana[data.getDay()]
           });
       }
       setDatasDisponiveis(datas);
@@ -130,24 +130,20 @@ export default function AgendarPage() {
       return `${year}-${month}-${day}`;
   };
 
-  // Carrega horários ocupados do banco quando muda a data
+  // Carrega horários ocupados
   useEffect(() => {
     const carregarOcupados = async () => {
       if(!db || !dataSelecionadaObj) return;
       setLoadingHorarios(true);
       try {
         const dataStr = dateToLocalString(dataSelecionadaObj);
-        // Busca agendamentos desta data que NÃO estejam cancelados
-        // Nota: Firestore requer índice composto para queries complexas. 
-        // Simplificando: Buscamos todos do dia e filtramos no cliente.
-        const q = query(
-           collection(db, 'agendamentos'), 
-           where('data', '==', dataStr)
-        );
+        // Busca agendamentos ocupados no dia
+        // Não usamos orderBy ou filtro complexo para evitar erro de índice
+        const q = query(collection(db, 'agendamentos'), where('data', '==', dataStr));
         const snap = await getDocs(q);
         const ocupados = snap.docs
           .map(d => d.data())
-          .filter(ag => ag.status !== 'cancelado') // Ignora cancelados
+          .filter(ag => ag.status !== 'cancelado') 
           .map(ag => ag.horario);
           
         setHorariosOcupados(ocupados);
@@ -191,7 +187,7 @@ export default function AgendarPage() {
       const minutosAgora = hoje.getHours() * 60 + hoje.getMinutes();
 
       while (atual < fimMinutos) {
-          // 1. Filtro de Passado
+          // Filtro Passado
           if (ehHoje && atual <= minutosAgora) {
               atual += intervalo;
               continue; 
@@ -201,7 +197,7 @@ export default function AgendarPage() {
           const m = atual % 60;
           const timeLabel = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
           
-          // 2. Filtro de Ocupado (Banco de Dados)
+          // Filtro Ocupado (Visual)
           if (!horariosOcupados.includes(timeLabel)) {
              slots.push(timeLabel);
           }
@@ -227,8 +223,8 @@ export default function AgendarPage() {
       try {
           const dateStr = dateToLocalString(dataSelecionadaObj);
           
-          // DOUBLE CHECK: Verificar se o horário ainda está livre antes de salvar
-          // (Previne duas pessoas clicando ao mesmo tempo)
+          // BLOQUEIO FINAL DE CONCORRÊNCIA
+          // Verifica se alguém pegou o horário no último segundo
           const qCheck = query(
             collection(db, 'agendamentos'), 
             where('data', '==', dateStr),
@@ -238,24 +234,22 @@ export default function AgendarPage() {
           const existeAtivo = checkSnap.docs.some(d => d.data().status !== 'cancelado');
           
           if (existeAtivo) {
-            toast.error("Ops! Esse horário acabou de ser reservado. Escolha outro.");
-            setEtapaAtual(3); // Volta para escolha de horário
-            // Recarrega horários
-            const ocupadosAtualizados = checkSnap.docs.map(d => d.data().horario);
-            setHorariosOcupados(prev => [...prev, ...ocupadosAtualizados]);
+            toast.error("Ops! Alguém acabou de reservar este horário. Escolha outro.");
+            setEtapaAtual(3); // Volta para Horários
+            // Atualiza lista de ocupados
+            const novosOcupados = checkSnap.docs.map(d => d.data().horario);
+            setHorariosOcupados(prev => [...prev, ...novosOcupados]);
             return;
           }
 
-          // 1. Lógica de Cliente (Unicidade pelo telefone)
+          // 1. Cliente Unico (Busca por Telefone)
           let clienteId = null;
-          const cleanPhone = clienteTelefone.replace(/\D/g, ''); // Remove formatação para busca
+          const cleanPhone = clienteTelefone.replace(/\D/g, ''); 
           
           try {
             const clientesRef = collection(db, 'clientes');
-            // Busca simplificada (Pode requerer ajuste de índice no firebase, mas where simples costuma funcionar)
-            // Se falhar, vamos criar um ID baseado no telefone para garantir unicidade sem query complexa
+            // Busca simples e filtro no cliente para evitar erros de índice
             const clientesSnap = await getDocs(clientesRef); 
-            // Filtragem no cliente para evitar erro de índice se a base for pequena
             const clienteExistente = clientesSnap.docs.find(doc => {
                 const tel = doc.data().telefone?.replace(/\D/g, '');
                 return tel === cleanPhone;
@@ -265,31 +259,30 @@ export default function AgendarPage() {
                 clienteId = clienteExistente.id;
                 await updateDoc(doc(db, 'clientes', clienteId), {
                     nome: clienteNome,
-                    ultimoAgendamento: serverTimestamp(),
+                    ultimoAgendamento: new Date(), // Date object is safer
                     totalVisitas: (clienteExistente.data().totalVisitas || 0) + 1
                 });
             } else {
                 const novoCliente = await addDoc(collection(db, 'clientes'), {
                     nome: clienteNome,
                     telefone: clienteTelefone,
-                    criadoEm: serverTimestamp(),
-                    ultimoAgendamento: serverTimestamp(),
+                    criadoEm: new Date(),
+                    ultimoAgendamento: new Date(),
                     totalVisitas: 1
                 });
                 clienteId = novoCliente.id;
             }
-          } catch(e) {
-              console.error("Erro cliente:", e);
-          }
+          } catch(e) { console.error("Erro cliente:", e); }
 
           // 2. Criar Agendamento
+          // Usando new Date() para criadoEm para garantir que o cliente Javascript consiga ler sem conversões complexas
           const novoAgendamento = {
               ...dadosAgendamento,
               clienteNome,
               clienteTelefone,
               clienteId,
               status: 'pendente',
-              criadoEm: serverTimestamp(),
+              criadoEm: new Date(), // Compatível com a lógica de notificação do Admin
               servicoNome: dadosAgendamento.servicoNome,
               barbeiroNome: dadosAgendamento.barbeiroNome,
               preco: dadosAgendamento.preco,
@@ -302,7 +295,7 @@ export default function AgendarPage() {
       } catch (error: any) {
           console.error("Erro ao agendar", error);
           if (error.code === 'permission-denied') {
-              toast.error("Erro de Permissão: O banco de dados bloqueou a gravação.");
+              toast.error("Erro de Permissão do Banco de Dados.");
           } else {
               toast.error("Erro ao finalizar agendamento");
           }
@@ -313,63 +306,33 @@ export default function AgendarPage() {
   const voltar = () => setEtapaAtual((e) => Math.max(e - 1, 1));
   const navigateHome = () => navigate('/');
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-dark flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-gold animate-spin" />
-      </div>
-    );
-  }
+  if (loading) return <div className="min-h-screen bg-dark flex items-center justify-center"><Loader2 className="w-8 h-8 text-gold animate-spin" /></div>;
 
   return (
     <main className="min-h-screen bg-dark pb-24">
       {/* Header */}
       <header className="sticky top-0 z-40 bg-dark/95 backdrop-blur-sm border-b border-white/5 px-4 py-4">
         <div className="max-w-lg mx-auto flex items-center gap-4">
-          <button 
-            onClick={() => {
-              if (etapaAtual > 1) {
-                voltar();
-              } else {
-                navigateHome();
-              }
-            }}
-            className="p-2 rounded-full bg-dark-card text-white border border-white/10 hover:bg-dark-card/80 transition-colors"
-          >
+          <button onClick={() => etapaAtual > 1 ? voltar() : navigateHome()} className="p-2 rounded-full bg-dark-card text-white border border-white/10 hover:bg-dark-card/80">
             <ArrowLeft className="w-5 h-5" />
           </button>
           <h1 className="text-xl font-bold text-white">Agendar Horário</h1>
         </div>
 
-        {/* Progress Steps */}
+        {/* Progress */}
         <div className="max-w-lg mx-auto mt-6">
           <div className="flex items-center justify-between relative">
             <div className="absolute top-1/2 left-0 w-full h-0.5 bg-white/10 -z-10" />
-            <div 
-              className="absolute top-1/2 left-0 h-0.5 bg-gold -z-10 transition-all duration-300"
-              style={{ width: `${((etapaAtual - 1) / (ETAPAS.length - 1)) * 100}%` }}
-            />
+            <div className="absolute top-1/2 left-0 h-0.5 bg-gold -z-10 transition-all duration-300" style={{ width: `${((etapaAtual - 1) / (ETAPAS.length - 1)) * 100}%` }} />
             {ETAPAS.map((etapa) => (
               <div key={etapa.id} className="flex flex-col items-center gap-2 bg-dark px-2">
                 <motion.div
-                  animate={{
-                    backgroundColor: etapaAtual >= etapa.id ? '#D4A853' : '#1A1A1A',
-                    borderColor: etapaAtual >= etapa.id ? '#D4A853' : '#333',
-                    scale: etapaAtual === etapa.id ? 1.1 : 1,
-                  }}
+                  animate={{ backgroundColor: etapaAtual >= etapa.id ? '#D4A853' : '#1A1A1A', scale: etapaAtual === etapa.id ? 1.1 : 1 }}
                   className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold border-2 transition-colors"
                 >
-                  {etapaAtual > etapa.id ? (
-                    <Check className="w-4 h-4 text-dark" />
-                  ) : (
-                    <span className={etapaAtual >= etapa.id ? 'text-dark' : 'text-gray-500'}>
-                      {etapa.id}
-                    </span>
-                  )}
+                  {etapaAtual > etapa.id ? <Check className="w-4 h-4 text-dark" /> : <span className={etapaAtual >= etapa.id ? 'text-dark' : 'text-gray-500'}>{etapa.id}</span>}
                 </motion.div>
-                <span className={`text-[10px] uppercase tracking-wider font-medium ${etapaAtual >= etapa.id ? 'text-gold' : 'text-gray-600'}`}>
-                  {etapa.nome}
-                </span>
+                <span className={`text-[10px] uppercase tracking-wider font-medium ${etapaAtual >= etapa.id ? 'text-gold' : 'text-gray-600'}`}>{etapa.nome}</span>
               </div>
             ))}
           </div>
@@ -382,17 +345,11 @@ export default function AgendarPage() {
           {etapaAtual === 1 && (
             <motion.div key="servico" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="grid gap-4">
               <h2 className="text-2xl font-bold mb-4">Escolha o Serviço</h2>
-              {servicos.length === 0 ? (
-                <div className="text-center py-10"><p className="text-gray-500">Nenhum serviço disponível.</p></div>
-              ) : (
-                servicos.map((servico) => (
+              {servicos.length === 0 ? <p className="text-center text-gray-500 py-10">Nenhum serviço disponível.</p> : servicos.map(servico => (
                   <motion.button
                     key={servico.id}
                     whileTap={{ scale: 0.98 }}
-                    onClick={() => {
-                      setServico(servico.id, servico.nome, servico.preco);
-                      avancar();
-                    }}
+                    onClick={() => { setServico(servico.id, servico.nome, servico.preco); avancar(); }}
                     className={`w-full p-4 rounded-2xl border flex items-center justify-between transition-colors ${dadosAgendamento.servicoId === servico.id ? 'bg-gold/10 border-gold' : 'bg-dark-card border-white/5 hover:border-white/20'}`}
                   >
                     <div className="flex items-center gap-4">
@@ -401,22 +358,18 @@ export default function AgendarPage() {
                     </div>
                     <span className="font-bold text-gold">R$ {servico.preco}</span>
                   </motion.button>
-                ))
-              )}
+              ))}
             </motion.div>
           )}
 
           {etapaAtual === 2 && (
             <motion.div key="barbeiro" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="grid gap-4">
               <h2 className="text-2xl font-bold mb-4">Escolha o Profissional</h2>
-              {barbeiros.map((barbeiro) => (
+              {barbeiros.map(barbeiro => (
                 <motion.button
                   key={barbeiro.id}
                   whileTap={{ scale: 0.98 }}
-                  onClick={() => {
-                    setBarbeiro(barbeiro.id, barbeiro.nome);
-                    avancar();
-                  }}
+                  onClick={() => { setBarbeiro(barbeiro.id, barbeiro.nome); avancar(); }}
                   className={`w-full p-4 rounded-2xl border flex items-center gap-4 transition-colors ${dadosAgendamento.barbeiroId === barbeiro.id ? 'bg-gold/10 border-gold' : 'bg-dark-card border-white/5 hover:border-white/20'}`}
                 >
                   <div className="w-14 h-14 rounded-full bg-gray-700 border-2 border-gold/50 flex items-center justify-center"><Users className="w-6 h-6 text-gray-400" /></div>
@@ -428,8 +381,7 @@ export default function AgendarPage() {
 
           {etapaAtual === 3 && (
             <motion.div key="data" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="grid gap-6">
-              <h2 className="text-2xl font-bold">Escolha a Data e Horário</h2>
-              
+              <h2 className="text-2xl font-bold">Escolha Data e Horário</h2>
               <div className="flex gap-2 overflow-x-auto pb-4 scrollbar-hide">
                 {datasDisponiveis.map((d, i) => {
                     const isSelected = dataSelecionadaObj && dataSelecionadaObj.getDate() === d.dateObj.getDate();
@@ -437,9 +389,7 @@ export default function AgendarPage() {
                         <button 
                             key={i} 
                             onClick={() => setDataSelecionadaObj(d.dateObj)}
-                            className={`flex-shrink-0 w-16 h-20 rounded-xl flex flex-col items-center justify-center border transition-all ${
-                                isSelected ? 'bg-gold text-dark border-gold scale-105' : 'bg-dark-card border-white/5 text-gray-400'
-                            }`}
+                            className={`flex-shrink-0 w-16 h-20 rounded-xl flex flex-col items-center justify-center border transition-all ${isSelected ? 'bg-gold text-dark border-gold scale-105' : 'bg-dark-card border-white/5 text-gray-400'}`}
                         >
                             <span className="text-[10px] font-bold uppercase">{d.label}</span>
                             <span className="text-xl font-bold">{d.dia}</span>
@@ -447,22 +397,17 @@ export default function AgendarPage() {
                     )
                 })}
               </div>
-
+              
               {loadingHorarios ? (
                  <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-gold" /></div>
               ) : horariosGerados.length === 0 ? (
-                  <div className="text-center py-8 bg-dark-card rounded-xl border border-white/5">
-                      <p className="text-gray-500">Nenhum horário disponível para este dia.</p>
-                  </div>
+                  <div className="text-center py-8 bg-dark-card rounded-xl border border-white/5"><p className="text-gray-500">Nenhum horário disponível.</p></div>
               ) : (
                 <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-                    {horariosGerados.map((time) => (
+                    {horariosGerados.map(time => (
                     <button
                         key={time}
-                        onClick={() => {
-                            setDataHorario(dateToLocalString(dataSelecionadaObj), time);
-                            avancar();
-                        }}
+                        onClick={() => { setDataHorario(dateToLocalString(dataSelecionadaObj), time); avancar(); }}
                         className="py-3 rounded-lg bg-dark-card border border-white/5 hover:border-gold/50 hover:text-gold transition-colors text-sm font-medium"
                     >
                         {time}
@@ -476,41 +421,16 @@ export default function AgendarPage() {
           {etapaAtual === 4 && (
             <motion.div key="resumo" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
               <h2 className="text-2xl font-bold mb-6">Confirme seus Dados</h2>
-              
               <div className="bg-dark-card rounded-2xl p-6 border border-white/10 space-y-4 mb-6">
-                 {/* Inputs de Cliente */}
                  <div className="space-y-4 pb-4 border-b border-white/5">
-                    <div>
-                        <label className="text-sm text-gray-400 mb-1 block">Seu Nome</label>
-                        <input 
-                            type="text" 
-                            value={clienteNome} 
-                            onChange={e => setClienteNome(e.target.value)}
-                            className="w-full bg-dark border border-white/10 rounded-lg p-3 text-white focus:border-gold outline-none"
-                            placeholder="Ex: João Silva"
-                        />
-                    </div>
-                    <div>
-                        <label className="text-sm text-gray-400 mb-1 block">Seu Telefone / WhatsApp</label>
-                        <input 
-                            type="tel" 
-                            value={clienteTelefone} 
-                            onChange={e => setClienteTelefone(e.target.value)}
-                            className="w-full bg-dark border border-white/10 rounded-lg p-3 text-white focus:border-gold outline-none"
-                            placeholder="(11) 99999-9999"
-                        />
-                    </div>
+                    <div><label className="text-sm text-gray-400 mb-1 block">Seu Nome</label><input type="text" value={clienteNome} onChange={e => setClienteNome(e.target.value)} className="w-full bg-dark border border-white/10 rounded-lg p-3 text-white focus:border-gold outline-none" placeholder="Ex: João Silva" /></div>
+                    <div><label className="text-sm text-gray-400 mb-1 block">Seu Telefone / WhatsApp</label><input type="tel" value={clienteTelefone} onChange={e => setClienteTelefone(e.target.value)} className="w-full bg-dark border border-white/10 rounded-lg p-3 text-white focus:border-gold outline-none" placeholder="(11) 99999-9999" /></div>
                  </div>
-
                 <div className="flex justify-between items-center"><span className="text-gray-400">Serviço</span><span className="font-medium text-white">{dadosAgendamento.servicoNome}</span></div>
-                <div className="flex justify-between items-center"><span className="text-gray-400">Profissional</span><span className="font-medium text-white">{dadosAgendamento.barbeiroNome}</span></div>
                 <div className="flex justify-between items-center"><span className="text-gray-400">Data & Hora</span><span className="font-medium text-white">{dadosAgendamento.data} às {dadosAgendamento.horario}</span></div>
                 <div className="flex justify-between items-center pt-2"><span className="text-gray-400">Total</span><span className="text-xl font-bold text-gold">R$ {dadosAgendamento.preco},00</span></div>
               </div>
-
-              <button onClick={handleConfirmarAgendamento} className="w-full py-4 bg-gold text-dark font-bold rounded-xl text-lg shadow-lg shadow-gold/20 hover:bg-gold-light transition-colors">
-                Confirmar Agendamento
-              </button>
+              <button onClick={handleConfirmarAgendamento} className="w-full py-4 bg-gold text-dark font-bold rounded-xl text-lg shadow-lg shadow-gold/20 hover:bg-gold-light transition-colors">Confirmar Agendamento</button>
             </motion.div>
           )}
         </AnimatePresence>

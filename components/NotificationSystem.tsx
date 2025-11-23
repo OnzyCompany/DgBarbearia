@@ -2,109 +2,166 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { collection, query, orderBy, limit, onSnapshot, where } from 'firebase/firestore';
+import { collection, query, limit, onSnapshot, orderBy } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import toast from 'react-hot-toast';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 export function NotificationSystem() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const location = useLocation();
+  const navigate = useNavigate();
   const isAdmin = location.pathname.startsWith('/admin');
+  
+  // Marca a hora que o componente montou para ignorar eventos antigos
+  const [mountTime] = useState(new Date());
 
   useEffect(() => {
-    // Som de notificação curto e agradável
-    audioRef.current = new Audio('https://cdn.freesound.org/previews/536/536108_11537492-lq.mp3');
+    // Link do áudio solicitado pelo usuário
+    audioRef.current = new Audio('https://res.cloudinary.com/dxhlvrach/video/upload/v1763934033/notificacao_umami_buejiy.mp3');
+    audioRef.current.volume = 1.0;
   }, []);
 
+  // Expor função global para ativar áudio via botão
   useEffect(() => {
-     // Função global para ser chamada pelo botão na página de configurações
      // @ts-ignore
      window.enableAppAudio = async (callback: (enabled: boolean) => void) => {
          if (audioRef.current) {
              try {
-                 // 1. Tentar tocar o som
-                 audioRef.current.volume = 1.0;
+                 // Tenta desbloquear o contexto de áudio do navegador
                  await audioRef.current.play();
                  audioRef.current.pause();
                  audioRef.current.currentTime = 0;
                  
-                 // 2. Pedir permissão de Notificação Nativa (Sistema Operacional)
+                 // Solicita permissão nativa do SO (Barra de notificação)
                  if ('Notification' in window) {
                      const permission = await Notification.requestPermission();
                      if (permission === 'granted') {
                          new Notification('NextBarber Pro', {
-                             body: 'Notificações e Sons Ativados com Sucesso! 🔊',
-                             icon: 'https://cdn-icons-png.flaticon.com/512/1000/1000627.png'
+                             body: 'Sistema de Alerta Ativado e Pronto! 🔊',
+                             icon: 'https://cdn-icons-png.flaticon.com/512/1000/1000627.png',
+                             silent: true // Tocar som manualmente para garantir
                          });
+                         // Toca o som real para confirmar
+                         audioRef.current.play();
                      }
                  }
-
-                 toast.success("Sistema de Alerta Ativado!");
+                 
+                 toast.success("Sons e Alertas Ativados!");
                  if(callback) callback(true);
              } catch(e) { 
-                 console.log("Erro ao ativar áudio:", e);
-                 toast.error("Não foi possível ativar o som. Interaja com a página primeiro.");
+                 console.error("Erro ao ativar áudio:", e);
+                 toast.error("Clique na página para permitir o som.");
                  if(callback) callback(false);
              }
          }
      };
   }, []);
 
-  const playSound = () => {
+  const playAlert = () => {
     if (audioRef.current) {
       audioRef.current.currentTime = 0;
-      audioRef.current.play().catch(e => console.log("Som bloqueado pelo navegador", e));
+      const promise = audioRef.current.play();
+      if (promise !== undefined) {
+          promise.catch(error => {
+              console.log("Autoplay bloqueado. O usuário precisa interagir com a página.");
+          });
+      }
     }
+  };
+
+  const showNativeNotification = (titulo: string, corpo: string, urlDestino?: string) => {
+      // 1. Toast Visual (Dentro do Site)
+      toast(corpo, {
+        icon: '🔔',
+        duration: 8000,
+        style: { 
+            borderRadius: '12px', 
+            background: '#1A1A1A', 
+            color: '#fff', 
+            border: '1px solid #D4A853',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.5)'
+        },
+      });
+
+      // 2. Notificação do Sistema (Fora do Site - Windows/Android)
+      if ('Notification' in window && Notification.permission === 'granted') {
+          try {
+              // Service Worker seria o ideal para background total, mas new Notification funciona
+              // se a aba estiver aberta (mesmo minimizada)
+              const notif = new Notification(titulo, {
+                  body: corpo,
+                  icon: 'https://cdn-icons-png.flaticon.com/512/1000/1000627.png',
+                  requireInteraction: true, // Mantém a notificação na tela até clicar
+                  tag: 'nextbarber-alert'
+              });
+
+              if (urlDestino) {
+                  notif.onclick = (e) => {
+                      e.preventDefault();
+                      window.focus();
+                      navigate(urlDestino);
+                      notif.close();
+                  };
+              }
+          } catch (e) {
+              console.error("Erro na notificação nativa:", e);
+          }
+      }
   };
 
   useEffect(() => {
     if (!db) return;
 
-    // LISTENER: Notificações Push (Geral)
-    const agora = new Date();
-    agora.setMinutes(agora.getMinutes() - 1); 
-
-    const qPush = query(
-      collection(db, 'notificacoes_push'),
-      where('criadoEm', '>', agora),
-      orderBy('criadoEm', 'desc'),
-      limit(1)
-    );
+    // --- LISTENER 1: PUSH GLOBAL (Para todos os clientes) ---
+    // Usamos limit(5) e ordenação simples para evitar erro de índice
+    const qPush = query(collection(db, 'notificacoes_push'), orderBy('criadoEm', 'desc'), limit(5));
 
     const unsubscribePush = onSnapshot(qPush, (snapshot) => {
       snapshot.docChanges().forEach((change) => {
         if (change.type === 'added') {
           const data = change.doc.data();
-          // Toca som se for usuário comum ou admin
-          playSound();
-          dispararNotificacao(data.titulo, data.mensagem, data.url);
+          
+          // CRUCIAL: Verificar se a notificação é NOVA (criada depois que entrei no site)
+          // Isso evita receber notificações antigas ao dar F5
+          const dataCriacao = data.criadoEm?.toDate ? data.criadoEm.toDate() : new Date(data.criadoEm);
+          
+          if (dataCriacao > mountTime) {
+            playAlert();
+            showNativeNotification(data.titulo, data.mensagem);
+          }
         }
       });
     });
 
-    // LISTENER: Novos Agendamentos (Apenas para Admin)
+    // --- LISTENER 2: NOVOS AGENDAMENTOS (Apenas para Admin) ---
     let unsubscribeAgendamentos = () => {};
-    
+
     if (isAdmin) {
+        // Query simplificada para garantir funcionamento sem índices compostos
         const qAgendamentos = query(
-            collection(db, 'agendamentos'),
-            where('status', '==', 'pendente'),
-            // Filtrar apenas criados recentemente para evitar spam ao carregar a página
-            where('criadoEm', '>', agora),
-            limit(1)
+            collection(db, 'agendamentos'), 
+            orderBy('criadoEm', 'desc'), 
+            limit(5)
         );
 
         unsubscribeAgendamentos = onSnapshot(qAgendamentos, (snapshot) => {
             snapshot.docChanges().forEach((change) => {
                 if (change.type === 'added') {
                     const data = change.doc.data();
-                    playSound();
-                    dispararNotificacao(
-                        'Novo Agendamento! ✂️',
-                        `${data.clienteNome} marcou ${data.servicoNome} às ${data.horario}.`,
-                        '/admin/agendamentos'
-                    );
+                    
+                    // Validação de tempo (apenas novos agendamentos criados agora)
+                    const dataCriacao = data.criadoEm?.toDate ? data.criadoEm.toDate() : new Date(data.criadoEm);
+                    
+                    // Verifica se é novo E se está pendente
+                    if (dataCriacao > mountTime && data.status === 'pendente') {
+                        playAlert();
+                        showNativeNotification(
+                            'Novo Agendamento! ✂️', 
+                            `${data.clienteNome} agendou para ${data.data} às ${data.horario}`,
+                            '/admin/agendamentos'
+                        );
+                    }
                 }
             });
         });
@@ -114,37 +171,7 @@ export function NotificationSystem() {
         unsubscribePush();
         unsubscribeAgendamentos();
     };
-  }, [isAdmin]);
-
-  const dispararNotificacao = (titulo: string, corpo: string, url?: string) => {
-    // 1. Toast Visual (Dentro do App)
-    toast(corpo, {
-      icon: '🔔',
-      duration: 6000,
-      style: { borderRadius: '10px', background: '#333', color: '#fff', border: '1px solid #D4A853' },
-    });
-
-    // 2. Notificação Nativa (Fora do App - Windows/Android)
-    if ('Notification' in window && Notification.permission === 'granted') {
-       try {
-        const notif = new Notification(titulo || 'NextBarber', {
-            body: corpo,
-            icon: 'https://cdn-icons-png.flaticon.com/512/1000/1000627.png',
-            tag: 'nextbarber-alert',
-            silent: false // Tenta forçar som nativo também
-        });
-        
-        if (url) {
-            notif.onclick = (e) => {
-                e.preventDefault();
-                window.location.hash = url; // Redireciona usando HashRouter
-                window.focus();
-                notif.close();
-            };
-        }
-       } catch(e) { console.error("Erro notificação nativa", e); }
-    }
-  };
+  }, [isAdmin, mountTime]);
 
   return null;
 }

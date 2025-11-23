@@ -100,11 +100,11 @@ export default function AdminNotificacoesPage() {
              className={`text-xs px-4 py-2 rounded-lg flex items-center gap-2 transition-all font-bold border ${
                  somAtivo 
                  ? 'bg-green-900/20 text-green-500 border-green-500/50' 
-                 : 'bg-gray-800 text-gray-300 border-gray-600 hover:bg-gray-700 animate-pulse'
+                 : 'bg-red-900/20 text-red-500 border-red-500/50 hover:bg-red-900/30 animate-pulse'
              }`}
           >
               {somAtivo ? <Volume2 className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
-              {somAtivo ? 'Sistema Ativo e Pronto' : 'ATIVAR SOM E ALERTAS'}
+              {somAtivo ? 'Sons e Alertas Ativos' : 'CLIQUE PARA ATIVAR SONS'}
           </button>
         </header>
 
@@ -184,7 +184,7 @@ export default function AdminNotificacoesPage() {
                     <h3 className="text-2xl font-bold text-white mb-2">Notificação Push Global</h3>
                     <div className="bg-[#252525] p-3 rounded-lg text-xs text-gray-400 mb-6 text-left border border-white/5">
                         <strong className="text-gold block mb-1">Como funciona?</strong>
-                        1. Clique no botão "ATIVAR SOM E ALERTAS" no topo da página.<br/>
+                        1. Clique no botão "CLIQUE PARA ATIVAR SONS" no topo da página.<br/>
                         2. Autorize as notificações quando o navegador pedir.<br/>
                         3. Ao enviar aqui, um alerta aparecerá na tela de todos os clientes conectados.
                     </div>
