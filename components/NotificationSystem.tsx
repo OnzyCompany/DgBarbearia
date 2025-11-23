@@ -1,8 +1,8 @@
 
 'use client';
 
-import { useEffect, useRef } from 'react';
-import { collection, query, orderBy, limit, onSnapshot, where, Timestamp } from 'firebase/firestore';
+import { useEffect, useRef, useState } from 'react';
+import { collection, query, orderBy, limit, onSnapshot, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import toast from 'react-hot-toast';
 import { useLocation } from 'react-router-dom';
@@ -11,20 +11,36 @@ export function NotificationSystem() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const location = useLocation();
   const isAdmin = location.pathname.startsWith('/admin');
+  const [audioEnabled, setAudioEnabled] = useState(false);
 
   useEffect(() => {
-    // Inicializa o som de notificação (apenas um bip simples)
+    // Inicializa o som de notificação
     audioRef.current = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+  }, []);
+
+  // Expose global function for the Admin Panel to enable audio
+  useEffect(() => {
+     // @ts-ignore
+     window.enableAppAudio = () => {
+         if (audioRef.current) {
+             audioRef.current.play().then(() => {
+                 audioRef.current?.pause();
+                 audioRef.current!.currentTime = 0;
+                 setAudioEnabled(true);
+                 toast.success("Áudio Ativado!");
+             }).catch(e => console.log(e));
+         }
+     };
   }, []);
 
   const playSound = () => {
     if (audioRef.current) {
-      audioRef.current.play().catch(e => console.log("Audio play blocked", e));
+      audioRef.current.currentTime = 0;
+      audioRef.current.play().catch(e => console.log("Audio play blocked (needs interaction)", e));
     }
   };
 
   useEffect(() => {
-    // 1. Solicitar permissão ao carregar
     const requestPermission = async () => {
       if (!('Notification' in window)) return;
       if (Notification.permission === 'default') {
@@ -35,9 +51,7 @@ export function NotificationSystem() {
 
     if (!db) return;
 
-    // ==========================================
-    // LISTENER 1: Notificações Push (Geral)
-    // ==========================================
+    // LISTENER: Notificações Push (Geral)
     const agora = new Date();
     agora.setMinutes(agora.getMinutes() - 1); 
 
@@ -57,15 +71,12 @@ export function NotificationSystem() {
       });
     });
 
-    // ==========================================
-    // LISTENER 2: Novos Agendamentos (Para o Barbeiro/Admin)
-    // ==========================================
-    // Só escuta se estiver na área administrativa para não incomodar clientes
+    // LISTENER: Novos Agendamentos (Admin)
     if (isAdmin) {
         const qAgendamentos = query(
             collection(db, 'agendamentos'),
             where('status', '==', 'pendente'),
-            where('criadoEm', '>', agora), // Apenas novos criados após abrir o app
+            where('criadoEm', '>', agora),
             limit(1)
         );
 
@@ -93,38 +104,32 @@ export function NotificationSystem() {
   }, [isAdmin]);
 
   const dispararNotificacao = (titulo: string, corpo: string, url?: string) => {
-    // Toast no App (sempre visível)
+    // Toast
     toast(corpo, {
       icon: '🔔',
       duration: 6000,
-      style: {
-        borderRadius: '10px',
-        background: '#333',
-        color: '#fff',
-        border: '1px solid #D4A853'
-      },
+      style: { borderRadius: '10px', background: '#333', color: '#fff', border: '1px solid #D4A853' },
     });
 
-    // Notificação do Navegador
+    // Native Notification
     if ('Notification' in window && Notification.permission === 'granted') {
-      try {
+       // Check if document is hidden to show notification primarily when tab is inactive
+       // But we show it always as requested
+       try {
         const notif = new Notification(titulo || 'NextBarber', {
             body: corpo,
-            icon: 'https://cdn-icons-png.flaticon.com/512/1000/1000627.png', // Icone genérico de barbearia
-            tag: 'nextbarber-alert'
+            icon: 'https://cdn-icons-png.flaticon.com/512/1000/1000627.png',
+            tag: 'nextbarber-alert' // Prevents stacking
         });
-
         if (url) {
             notif.onclick = (e) => {
-            e.preventDefault();
-            window.location.hash = url; // HashRouter
-            window.focus();
-            notif.close();
+                e.preventDefault();
+                window.location.hash = url;
+                window.focus();
+                notif.close();
             };
         }
-      } catch (e) {
-        console.error("Erro notificação nativa", e);
-      }
+       } catch(e) { console.error(e); }
     }
   };
 

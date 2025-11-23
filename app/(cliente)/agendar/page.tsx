@@ -7,7 +7,7 @@ import { useBookingStore } from '../../../stores/bookingStore';
 import { BookingSuccessAnimation } from '../../../components/cliente/BookingSuccessAnimation';
 import { ArrowLeft, Check, Scissors, Users, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { collection, getDocs, query, orderBy, addDoc, doc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, addDoc, doc, getDoc, where, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../lib/firebase';
 import toast from 'react-hot-toast';
 
@@ -138,7 +138,7 @@ export default function AgendarPage() {
       
       // Configuração do dia específico
       const configDia = cfg?.dias?.[diaNome];
-      const intervalo = Number(cfg?.intervalo || 60); // Usa o intervalo do admin ou 60 por padrão
+      const intervalo = Number(cfg?.intervalo || 60);
 
       if (configDia && !configDia.ativo) {
           setHorariosGerados([]); // Dia fechado
@@ -163,9 +163,10 @@ export default function AgendarPage() {
       const minutosAgora = hoje.getHours() * 60 + hoje.getMinutes();
 
       while (atual < fimMinutos) {
+          // Se for hoje e o horário já passou, pula
           if (ehHoje && atual <= minutosAgora) {
               atual += intervalo;
-              continue; // Pula horário passado
+              continue; 
           }
 
           const h = Math.floor(atual / 60);
@@ -194,31 +195,65 @@ export default function AgendarPage() {
       try {
           const dateStr = dateToLocalString(dataSelecionadaObj);
           
+          // 1. Verificar se o cliente já existe pelo telefone
+          let clienteId = null;
+          const cleanPhone = clienteTelefone.replace(/\D/g, '');
+          
+          try {
+            const clientesRef = collection(db, 'clientes');
+            // Busca apenas pelo telefone
+            const qCliente = query(clientesRef, where('telefone', '==', clienteTelefone)); 
+            const clienteSnap = await getDocs(qCliente);
+
+            if (!clienteSnap.empty) {
+                // Cliente existe, atualiza nome e data
+                const docCliente = clienteSnap.docs[0];
+                clienteId = docCliente.id;
+                await updateDoc(doc(db, 'clientes', clienteId), {
+                    nome: clienteNome, // Atualiza nome caso tenha mudado
+                    ultimoAgendamento: serverTimestamp(),
+                    totalVisitas: (docCliente.data().totalVisitas || 0) + 1
+                });
+            } else {
+                // Cliente novo
+                const novoCliente = await addDoc(collection(db, 'clientes'), {
+                    nome: clienteNome,
+                    telefone: clienteTelefone,
+                    criadoEm: serverTimestamp(),
+                    ultimoAgendamento: serverTimestamp(),
+                    totalVisitas: 1
+                });
+                clienteId = novoCliente.id;
+            }
+          } catch(e) {
+              console.error("Erro ao gerenciar cliente:", e);
+              // Segue o fluxo mesmo se der erro no cliente para não travar o agendamento
+          }
+
+          // 2. Criar Agendamento
           const novoAgendamento = {
               ...dadosAgendamento,
               clienteNome,
               clienteTelefone,
+              clienteId,
               status: 'pendente',
-              criadoEm: new Date(),
+              criadoEm: serverTimestamp(), // Importante para ordenação
               servicoNome: dadosAgendamento.servicoNome,
               barbeiroNome: dadosAgendamento.barbeiroNome,
               preco: dadosAgendamento.preco,
-              data: dadosAgendamento.data // Já vem do setDataHorario no formato YYYY-MM-DD
+              data: dadosAgendamento.data // Formato YYYY-MM-DD
           };
 
           await addDoc(collection(db, 'agendamentos'), novoAgendamento);
-          
-          // Salva cliente para base (opcional)
-          addDoc(collection(db, 'clientes'), {
-              nome: clienteNome,
-              telefone: clienteTelefone,
-              ultimoAgendamento: new Date()
-          }).catch(() => {});
 
           setSucesso(true);
-      } catch (error) {
+      } catch (error: any) {
           console.error("Erro ao agendar", error);
-          toast.error("Erro ao finalizar agendamento");
+          if (error.code === 'permission-denied') {
+              toast.error("Erro de Permissão: O banco de dados bloqueou a gravação.");
+          } else {
+              toast.error("Erro ao finalizar agendamento");
+          }
       }
   };
 

@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Sidebar } from '../../../../components/admin/Sidebar';
-import { MessageSquare, Users, Send, Bell, Radio } from 'lucide-react';
+import { MessageSquare, Users, Send, Bell, Radio, Volume2 } from 'lucide-react';
 import { collection, query, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../../lib/firebase';
 import toast from 'react-hot-toast';
@@ -43,29 +43,11 @@ export default function AdminNotificacoesPage() {
     fetchClientes();
   }, []);
 
-  const toggleCliente = (id: string) => {
-    if (selecionados.includes(id)) {
-        setSelecionados(selecionados.filter(sid => sid !== id));
-    } else {
-        setSelecionados([...selecionados, id]);
-    }
-  };
-
-  const selecionarTodos = () => {
-      if (selecionados.length === clientes.length) setSelecionados([]);
-      else setSelecionados(clientes.map(c => c.id));
-  };
-
-  const gerarLink = (telefone: string) => {
-      const num = telefone.replace(/\D/g, '');
-      // Usa api.whatsapp.com para maior compatibilidade desktop
-      return `https://api.whatsapp.com/send?phone=55${num}&text=${encodeURIComponent(mensagem)}`;
-  };
-
   const handleEnviarWhatsApp = (cliente: any) => {
       if(!mensagem) { toast.error("Escreva uma mensagem"); return; }
       if(!cliente.telefone) { toast.error("Cliente sem telefone"); return; }
-      window.open(gerarLink(cliente.telefone), '_blank');
+      const num = cliente.telefone.replace(/\D/g, '');
+      window.open(`https://api.whatsapp.com/send?phone=55${num}&text=${encodeURIComponent(mensagem)}`, '_blank');
   };
 
   const handleEnviarPush = async () => {
@@ -73,33 +55,42 @@ export default function AdminNotificacoesPage() {
           toast.error("Preencha título e mensagem");
           return;
       }
-
       try {
-          // Cria um documento na coleção 'notificacoes_push'
-          // O componente NotificationSystem no cliente está escutando essa coleção
           await addDoc(collection(db, 'notificacoes_push'), {
               titulo: tituloPush,
               mensagem: mensagem,
-              criadoEm: serverTimestamp(), // O listener filtra por hora atual
-              url: window.location.origin // Link para abrir o site
+              criadoEm: serverTimestamp(),
+              url: window.location.origin 
           });
-          
-          toast.success("Notificação Push Enviada para todos os visitantes online!");
+          toast.success("Notificação Push Enviada!");
           setTituloPush('');
           setMensagem('');
       } catch (error) {
-          console.error(error);
           toast.error("Erro ao enviar push");
       }
+  };
+
+  const ativarSom = () => {
+      // @ts-ignore
+      if (window.enableAppAudio) window.enableAppAudio();
   };
 
   return (
     <div className="flex h-screen bg-[#0D0D0D]">
       <Sidebar />
       <main className="flex-1 overflow-y-auto p-4 lg:p-8">
-        <header className="mb-8">
-          <h2 className="text-2xl font-bold text-white">Central de Notificações</h2>
-          <p className="text-gray-400">Comunique-se com seus clientes</p>
+        <header className="mb-8 flex justify-between items-center">
+          <div>
+            <h2 className="text-2xl font-bold text-white">Central de Notificações</h2>
+            <p className="text-gray-400">Comunique-se com seus clientes</p>
+          </div>
+          <button 
+             onClick={ativarSom}
+             className="text-xs bg-gray-800 text-gold border border-gold/30 px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-gray-700 transition-colors"
+          >
+              <Volume2 className="w-4 h-4" />
+              Testar/Ativar Som do Sistema
+          </button>
         </header>
 
         {/* Tabs */}
@@ -176,9 +167,12 @@ export default function AdminNotificacoesPage() {
                         <Bell className="w-8 h-8 text-[#D4A853]" />
                     </div>
                     <h3 className="text-2xl font-bold text-white mb-2">Notificação Push Global</h3>
-                    <p className="text-gray-400 mb-8">
-                        Isso enviará um alerta para TODOS os usuários que estão com o site aberto ou deram permissão de notificação no navegador.
-                    </p>
+                    <div className="bg-[#252525] p-3 rounded-lg text-xs text-gray-400 mb-6 text-left">
+                        <strong className="text-gold block mb-1">Como funciona?</strong>
+                        1. Clique no botão "Testar/Ativar Som" acima para liberar o navegador.<br/>
+                        2. Clientes devem aceitar a permissão de notificação ao entrar no site.<br/>
+                        3. Ao enviar aqui, um alerta aparecerá na tela de todos, mesmo com o navegador minimizado.
+                    </div>
 
                     <div className="space-y-4 text-left">
                         <div>

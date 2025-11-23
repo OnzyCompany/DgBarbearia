@@ -28,8 +28,9 @@ export default function AdminAgendamentosPage() {
   useEffect(() => {
     if (!db) return;
 
-    // Listen to real-time updates
-    const q = query(collection(db, 'agendamentos'), orderBy('data', 'desc'), orderBy('horario', 'asc'));
+    // Use a simple query first to avoid "Missing Index" errors on multiple sort fields
+    // Sorting by created time ensures recent ones are top
+    const q = query(collection(db, 'agendamentos'), orderBy('criadoEm', 'desc'));
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({
@@ -38,6 +39,9 @@ export default function AdminAgendamentosPage() {
       })) as Agendamento[];
       setAgendamentos(data);
       setLoading(false);
+    }, (error) => {
+        console.error("Error fetching appointments:", error);
+        setLoading(false);
     });
 
     return () => unsubscribe();
@@ -47,22 +51,17 @@ export default function AdminAgendamentosPage() {
     if (!window.confirm(`Confirmar agendamento de ${agendamento.clienteNome}?`)) return;
 
     try {
-        // 1. Atualizar status no banco
         await updateDoc(doc(db, 'agendamentos', agendamento.id), {
             status: 'confirmado'
         });
         toast.success("Agendamento confirmado!");
 
-        // 2. Redirecionar para WhatsApp do cliente
         if (agendamento.clienteTelefone) {
             const num = agendamento.clienteTelefone.replace(/\D/g, '');
             const msg = `Olá ${agendamento.clienteNome}! 👋\n\nSeu agendamento na *NextBarber* está confirmado! ✅\n\n🗓 Data: ${agendamento.data}\n⏰ Horário: ${agendamento.horario}\n✂️ Serviço: ${agendamento.servicoNome}\n\nTe esperamos lá!`;
-            
-            // Usar api.whatsapp.com funciona melhor para abrir o app Desktop
             const url = `https://api.whatsapp.com/send?phone=55${num}&text=${encodeURIComponent(msg)}`;
             window.open(url, '_blank');
         }
-
     } catch (error) {
         console.error(error);
         toast.error("Erro ao confirmar agendamento");
@@ -72,7 +71,6 @@ export default function AdminAgendamentosPage() {
   return (
     <div className="flex h-screen bg-[#0D0D0D]">
       <Sidebar />
-      
       <main className="flex-1 overflow-y-auto p-4 lg:p-8">
         <header className="mb-8">
           <h2 className="text-2xl font-bold text-white">Agendamentos</h2>
