@@ -23,37 +23,56 @@ export default function AdminDashboardPage() {
       try {
         if (!db) return;
 
+        // CORREÇÃO: Usar a data local "YYYY-MM-DD" para bater com o que é salvo no agendamento
         const today = new Date();
-        const dateString = today.toISOString().split('T')[0];
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        const dateString = `${year}-${month}-${day}`;
+        
+        console.log("Buscando agendamentos para data:", dateString);
 
         // 1. Agendamentos de Hoje
-        const agendamentosRef = collection(db, 'agendamentos');
-        const qHoje = query(agendamentosRef, where('data', '==', dateString));
-        const snapshotHoje = await getDocs(qHoje);
-        
-        const countHoje = snapshotHoje.size;
-        
-        // 2. Faturamento do Dia
-        let faturamento = 0;
-        snapshotHoje.docs.forEach(doc => {
-          const data = doc.data();
-          faturamento += Number(data.preco || 0);
-        });
+        try {
+            const agendamentosRef = collection(db, 'agendamentos');
+            // Busca apenas pela string de data
+            const qHoje = query(agendamentosRef, where('data', '==', dateString));
+            const snapshotHoje = await getDocs(qHoje);
+            
+            const countHoje = snapshotHoje.size;
+            
+            // 2. Faturamento do Dia
+            let faturamento = 0;
+            snapshotHoje.docs.forEach(doc => {
+              const data = doc.data();
+              // Soma se tiver preço
+              faturamento += Number(data.preco || 0);
+            });
+
+             // 4. Ticket Médio
+            const ticket = countHoje > 0 ? faturamento / countHoje : 0;
+            
+             setStats(prev => ({
+                ...prev,
+                agendamentosHoje: countHoje,
+                faturamentoDia: faturamento,
+                ticketMedio: ticket
+            }));
+
+        } catch (e: any) {
+            console.error("Erro leitura dashboard (agendamentos):", e);
+            if(e.code === 'permission-denied') {
+                toast.error("Sem permissão de leitura no banco. Verifique as Regras.", { id: 'perm-error' });
+            }
+        }
 
         // 3. Novos Clientes
-        const clientesRef = collection(db, 'clientes');
-        const snapshotClientes = await getDocs(clientesRef);
-        const countClientes = snapshotClientes.size;
-
-        // 4. Ticket Médio
-        const ticket = countHoje > 0 ? faturamento / countHoje : 0;
-
-        setStats({
-          agendamentosHoje: countHoje,
-          faturamentoDia: faturamento,
-          novosClientes: countClientes,
-          ticketMedio: ticket
-        });
+        try {
+            const clientesRef = collection(db, 'clientes');
+            const snapshotClientes = await getDocs(clientesRef);
+            const countClientes = snapshotClientes.size;
+            setStats(prev => ({ ...prev, novosClientes: countClientes }));
+        } catch(e) { console.error(e) }
 
       } catch (error) {
         console.error("Erro ao carregar dashboard:", error);
@@ -92,11 +111,15 @@ export default function AdminDashboardPage() {
         }
 
         toast.success("Dados iniciais criados com sucesso!");
-        window.location.reload();
+        setTimeout(() => window.location.reload(), 1000);
 
-    } catch (e) {
+    } catch (e: any) {
         console.error(e);
-        toast.error("Erro ao criar dados. Verifique as regras do Firebase.");
+        if (e.code === 'permission-denied' || e.message?.includes('permission')) {
+            toast.error("ERRO DE PERMISSÃO: Vá no Firebase Console > Firestore Database > Regras e mude para 'allow read, write: if true;'", { duration: 6000 });
+        } else {
+            toast.error("Erro ao criar dados. Verifique o console.");
+        }
     } finally {
         setLoading(false);
     }
@@ -115,10 +138,10 @@ export default function AdminDashboardPage() {
             <div className="flex gap-4 items-center">
                 <button 
                     onClick={handleSeedData}
-                    className="text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 px-3 py-2 rounded-lg flex items-center gap-2 transition-colors"
+                    className="text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 px-3 py-2 rounded-lg flex items-center gap-2 transition-colors border border-gray-700"
                 >
                     <Database className="w-3 h-3" />
-                    Inicializar Dados
+                    Inicializar Dados (Seed)
                 </button>
                 <div className="text-right">
                     <p className="text-sm text-gray-400">{new Date().toLocaleDateString()}</p>

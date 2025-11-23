@@ -12,11 +12,14 @@ import AdminBarbeirosPage from './(admin)/admin/barbeiros/page';
 import AdminClientesPage from './(admin)/admin/clientes/page';
 import AdminHorariosPage from './(admin)/admin/horarios/page';
 import AdminConfiguracoesPage from './(admin)/admin/configuracoes/page';
+import AdminNotificacoesPage from './(admin)/admin/notificacoes/page';
+import { NotificationSystem } from '../components/NotificationSystem';
 
 // Layout wrapper to apply global styles and providers
 const Layout = ({ children }: { children: React.ReactNode }) => {
   return (
     <div className="min-h-screen bg-dark text-white font-sans antialiased selection:bg-gold selection:text-dark">
+      <NotificationSystem />
       {children}
       <Toaster position="bottom-center" toastOptions={{
         style: {
@@ -51,6 +54,7 @@ export default function App() {
         <Route path="/admin/barbeiros" element={<AdminBarbeirosPage />} />
         <Route path="/admin/clientes" element={<AdminClientesPage />} />
         <Route path="/admin/horarios" element={<AdminHorariosPage />} />
+        <Route path="/admin/notificacoes" element={<AdminNotificacoesPage />} />
         <Route path="/admin/configuracoes" element={<AdminConfiguracoesPage />} />
         
         {/* Catch all for admin to dashboard, others to home */}

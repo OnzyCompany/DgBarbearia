@@ -42,7 +42,7 @@ export default function AdminServicosPage() {
       setLoading(false);
     }, (error) => {
         console.error("Erro ao ler serviços:", error);
-        toast.error("Erro de conexão com o banco");
+        // Não mostrar toast de erro aqui para não spammar se for permissão na leitura
         setLoading(false);
     });
 
@@ -74,9 +74,13 @@ export default function AdminServicosPage() {
       toast.success('Serviço criado com sucesso!');
       setIsModalOpen(false);
       setFormData({ nome: '', preco: '', duracao: '', categoria: 'corte' });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erro ao salvar:", error);
-      toast.error('Erro ao salvar. Verifique o console.');
+      if (error.code === 'permission-denied' || error.message?.includes('permission')) {
+          toast.error('ERRO PERMISSÃO: Ative o "Modo de Teste" nas Regras do Firestore no console do Firebase.', { duration: 5000 });
+      } else {
+          toast.error('Erro ao salvar. Verifique o console.');
+      }
     }
   };
 
@@ -85,8 +89,12 @@ export default function AdminServicosPage() {
       try {
         await deleteDoc(doc(db, 'servicos', id));
         toast.success('Serviço removido');
-      } catch (error) {
-        toast.error('Erro ao remover');
+      } catch (error: any) {
+         if (error.code === 'permission-denied') {
+            toast.error('Sem permissão para excluir.');
+         } else {
+            toast.error('Erro ao remover');
+         }
       }
     }
   };

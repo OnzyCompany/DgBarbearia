@@ -6,9 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, Scissors, Users, Calendar, 
-  BarChart3, Settings, Bell, Gift, Heart,
-  Sparkles, Clock, CalendarOff, LogOut, Menu, X,
-  CreditCard, Package
+  Settings, Bell, Clock, LogOut, Menu, X
 } from 'lucide-react';
 import { auth } from '../../lib/firebase';
 import { signOut } from 'firebase/auth';
@@ -21,6 +19,7 @@ const MENU_ITEMS = [
   { href: '/admin/barbeiros', label: 'Barbeiros', icon: Users },
   { href: '/admin/clientes', label: 'Clientes', icon: Users },
   { href: '/admin/horarios', label: 'Config. Horários', icon: Clock },
+  { href: '/admin/notificacoes', label: 'Notificações', icon: Bell },
   { href: '/admin/configuracoes', label: 'Configurações', icon: Settings },
 ];
 
