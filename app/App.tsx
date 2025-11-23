@@ -6,6 +6,8 @@ import HomePage from './page';
 import AgendarPage from './(cliente)/agendar/page';
 import AdminLoginPage from './(admin)/admin/page';
 import AdminDashboardPage from './(admin)/admin/dashboard/page';
+import AdminServicosPage from './(admin)/admin/servicos/page';
+import AdminAgendamentosPage from './(admin)/admin/agendamentos/page';
 
 // Layout wrapper to apply global styles and providers
 const Layout = ({ children }: { children: React.ReactNode }) => {
@@ -40,7 +42,9 @@ export default function App() {
         {/* Admin Routes */}
         <Route path="/admin" element={<AdminLoginPage />} />
         <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
-        <Route path="/admin/*" element={<AdminDashboardPage />} /> {/* Fallback for other admin routes for now */}
+        <Route path="/admin/servicos" element={<AdminServicosPage />} />
+        <Route path="/admin/agendamentos" element={<AdminAgendamentosPage />} />
+        <Route path="/admin/*" element={<AdminDashboardPage />} />
       </Routes>
     </Layout>
   );
