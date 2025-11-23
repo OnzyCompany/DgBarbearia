@@ -1,11 +1,11 @@
-
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { collection, query, limit, onSnapshot, orderBy } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import toast from 'react-hot-toast';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { Bell, Volume2 } from 'lucide-react';
 
 export function NotificationSystem() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -13,48 +13,62 @@ export function NotificationSystem() {
   const navigate = useNavigate();
   const isAdmin = location.pathname.startsWith('/admin');
   
+  // Estado para controlar a permissão visualmente
+  const [permissionState, setPermissionState] = useState<NotificationPermission>('default');
+  
   // Marca a hora que o componente montou para ignorar eventos antigos
   const [mountTime] = useState(new Date());
 
   useEffect(() => {
-    // Link do áudio solicitado pelo usuário
+    // Verificar estado atual da permissão ao carregar
+    if ('Notification' in window) {
+      setPermissionState(Notification.permission);
+    }
+
+    // Link do áudio solicitado pelo usuário (Cloudinary)
     audioRef.current = new Audio('https://res.cloudinary.com/dxhlvrach/video/upload/v1763934033/notificacao_umami_buejiy.mp3');
     audioRef.current.volume = 1.0;
   }, []);
 
-  // Expor função global para ativar áudio via botão
+  // Função para desbloquear áudio e pedir permissão (Deve ser chamada por clique do usuário)
+  const requestPermission = async () => {
+    if (!audioRef.current) return;
+
+    try {
+      // 1. Desbloquear AudioContext (Toca e pausa rapidinho)
+      await audioRef.current.play().catch(() => {});
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+
+      // 2. Pedir Permissão Nativa
+      if ('Notification' in window) {
+        const permission = await Notification.requestPermission();
+        setPermissionState(permission);
+        
+        if (permission === 'granted') {
+          // Teste imediato
+          new Notification('NextBarber Pro', {
+            body: 'Notificações Ativadas com Sucesso! 🔔',
+            icon: 'https://cdn-icons-png.flaticon.com/512/1000/1000627.png',
+          });
+          audioRef.current.play();
+          toast.success("Sistema de Notificação Ativo!");
+        } else {
+          toast.error("Permissão negada. Não poderemos avisar sobre agendamentos.");
+        }
+      }
+    } catch (e) {
+      console.error("Erro ao solicitar permissão:", e);
+    }
+  };
+
+  // Expor função global para o Admin usar no botão da página de configurações
   useEffect(() => {
      // @ts-ignore
      window.enableAppAudio = async (callback: (enabled: boolean) => void) => {
-         if (audioRef.current) {
-             try {
-                 // Tenta desbloquear o contexto de áudio do navegador
-                 await audioRef.current.play();
-                 audioRef.current.pause();
-                 audioRef.current.currentTime = 0;
-                 
-                 // Solicita permissão nativa do SO (Barra de notificação)
-                 if ('Notification' in window) {
-                     const permission = await Notification.requestPermission();
-                     if (permission === 'granted') {
-                         new Notification('NextBarber Pro', {
-                             body: 'Sistema de Alerta Ativado e Pronto! 🔊',
-                             icon: 'https://cdn-icons-png.flaticon.com/512/1000/1000627.png',
-                             silent: true // Tocar som manualmente para garantir
-                         });
-                         // Toca o som real para confirmar
-                         audioRef.current.play();
-                     }
-                 }
-                 
-                 toast.success("Sons e Alertas Ativados!");
-                 if(callback) callback(true);
-             } catch(e) { 
-                 console.error("Erro ao ativar áudio:", e);
-                 toast.error("Clique na página para permitir o som.");
-                 if(callback) callback(false);
-             }
-         }
+         await requestPermission();
+         // @ts-ignore
+         if (callback) callback(Notification.permission === 'granted');
      };
   }, []);
 
@@ -64,7 +78,7 @@ export function NotificationSystem() {
       const promise = audioRef.current.play();
       if (promise !== undefined) {
           promise.catch(error => {
-              console.log("Autoplay bloqueado. O usuário precisa interagir com a página.");
+              console.log("Autoplay bloqueado. Necessário interação do usuário.", error);
           });
       }
     }
@@ -80,19 +94,16 @@ export function NotificationSystem() {
             background: '#1A1A1A', 
             color: '#fff', 
             border: '1px solid #D4A853',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.5)'
         },
       });
 
       // 2. Notificação do Sistema (Fora do Site - Windows/Android)
       if ('Notification' in window && Notification.permission === 'granted') {
           try {
-              // Service Worker seria o ideal para background total, mas new Notification funciona
-              // se a aba estiver aberta (mesmo minimizada)
               const notif = new Notification(titulo, {
                   body: corpo,
                   icon: 'https://cdn-icons-png.flaticon.com/512/1000/1000627.png',
-                  requireInteraction: true, // Mantém a notificação na tela até clicar
+                  requireInteraction: true, 
                   tag: 'nextbarber-alert'
               });
 
@@ -113,17 +124,14 @@ export function NotificationSystem() {
   useEffect(() => {
     if (!db) return;
 
-    // --- LISTENER 1: PUSH GLOBAL (Para todos os clientes) ---
-    // Usamos limit(5) e ordenação simples para evitar erro de índice
+    // --- LISTENER 1: PUSH GLOBAL ---
     const qPush = query(collection(db, 'notificacoes_push'), orderBy('criadoEm', 'desc'), limit(5));
 
     const unsubscribePush = onSnapshot(qPush, (snapshot) => {
       snapshot.docChanges().forEach((change) => {
         if (change.type === 'added') {
           const data = change.doc.data();
-          
-          // CRUCIAL: Verificar se a notificação é NOVA (criada depois que entrei no site)
-          // Isso evita receber notificações antigas ao dar F5
+          // Filtro de Timestamp no Cliente
           const dataCriacao = data.criadoEm?.toDate ? data.criadoEm.toDate() : new Date(data.criadoEm);
           
           if (dataCriacao > mountTime) {
@@ -134,11 +142,10 @@ export function NotificationSystem() {
       });
     });
 
-    // --- LISTENER 2: NOVOS AGENDAMENTOS (Apenas para Admin) ---
+    // --- LISTENER 2: NOVOS AGENDAMENTOS (Admin) ---
     let unsubscribeAgendamentos = () => {};
 
     if (isAdmin) {
-        // Query simplificada para garantir funcionamento sem índices compostos
         const qAgendamentos = query(
             collection(db, 'agendamentos'), 
             orderBy('criadoEm', 'desc'), 
@@ -149,11 +156,8 @@ export function NotificationSystem() {
             snapshot.docChanges().forEach((change) => {
                 if (change.type === 'added') {
                     const data = change.doc.data();
-                    
-                    // Validação de tempo (apenas novos agendamentos criados agora)
                     const dataCriacao = data.criadoEm?.toDate ? data.criadoEm.toDate() : new Date(data.criadoEm);
                     
-                    // Verifica se é novo E se está pendente
                     if (dataCriacao > mountTime && data.status === 'pendente') {
                         playAlert();
                         showNativeNotification(
@@ -172,6 +176,21 @@ export function NotificationSystem() {
         unsubscribeAgendamentos();
     };
   }, [isAdmin, mountTime]);
+
+  // Renderiza botão flutuante se a permissão não foi concedida ainda
+  if (permissionState === 'default') {
+    return (
+      <div className="fixed bottom-4 right-4 z-[9999] animate-bounce">
+        <button
+          onClick={requestPermission}
+          className="bg-[#D4A853] text-[#0D0D0D] font-bold px-4 py-3 rounded-full shadow-lg flex items-center gap-2 hover:bg-[#E5BE7D] transition-colors border-2 border-white/20"
+        >
+          <Bell className="w-5 h-5" />
+          Ativar Notificações
+        </button>
+      </div>
+    );
+  }
 
   return null;
 }

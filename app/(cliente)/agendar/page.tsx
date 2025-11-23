@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -282,7 +281,8 @@ export default function AgendarPage() {
               clienteTelefone,
               clienteId,
               status: 'pendente',
-              criadoEm: new Date(), // Compatível com a lógica de notificação do Admin
+              // CRUCIAL: Salvar como Date object para funcionar com o filtro do NotificationSystem
+              criadoEm: new Date(), 
               servicoNome: dadosAgendamento.servicoNome,
               barbeiroNome: dadosAgendamento.barbeiroNome,
               preco: dadosAgendamento.preco,

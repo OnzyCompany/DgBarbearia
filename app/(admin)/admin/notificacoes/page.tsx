@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -42,7 +41,6 @@ export default function AdminNotificacoesPage() {
     };
     fetchClientes();
     
-    // Check permission status
     if ('Notification' in window && Notification.permission === 'granted') {
         setSomAtivo(true);
     }
@@ -64,7 +62,7 @@ export default function AdminNotificacoesPage() {
           await addDoc(collection(db, 'notificacoes_push'), {
               titulo: tituloPush,
               mensagem: mensagem,
-              criadoEm: serverTimestamp(),
+              criadoEm: new Date(), // Usando Date object para compatibilidade com o filtro do NotificationSystem
               url: window.location.origin 
           });
           toast.success("Notificação Push Enviada!");
@@ -82,6 +80,8 @@ export default function AdminNotificacoesPage() {
           window.enableAppAudio((success) => {
               setSomAtivo(success);
           });
+      } else {
+          toast.error("Sistema de notificação não carregado.");
       }
   };
 
@@ -99,12 +99,12 @@ export default function AdminNotificacoesPage() {
              onClick={ativarSom}
              className={`text-xs px-4 py-2 rounded-lg flex items-center gap-2 transition-all font-bold border ${
                  somAtivo 
-                 ? 'bg-green-900/20 text-green-500 border-green-500/50' 
-                 : 'bg-red-900/20 text-red-500 border-red-500/50 hover:bg-red-900/30 animate-pulse'
+                 ? 'bg-green-900/20 text-green-500 border-green-500/50 cursor-default' 
+                 : 'bg-red-900/20 text-red-500 border-red-500/50 hover:bg-red-900/30 animate-pulse cursor-pointer'
              }`}
           >
               {somAtivo ? <Volume2 className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
-              {somAtivo ? 'Sons e Alertas Ativos' : 'CLIQUE PARA ATIVAR SONS'}
+              {somAtivo ? 'Sistema Ativo e Pronto' : 'ATIVAR SOM E ALERTAS'}
           </button>
         </header>
 
@@ -184,7 +184,7 @@ export default function AdminNotificacoesPage() {
                     <h3 className="text-2xl font-bold text-white mb-2">Notificação Push Global</h3>
                     <div className="bg-[#252525] p-3 rounded-lg text-xs text-gray-400 mb-6 text-left border border-white/5">
                         <strong className="text-gold block mb-1">Como funciona?</strong>
-                        1. Clique no botão "CLIQUE PARA ATIVAR SONS" no topo da página.<br/>
+                        1. Clique no botão "ATIVAR SOM E ALERTAS" no topo da página.<br/>
                         2. Autorize as notificações quando o navegador pedir.<br/>
                         3. Ao enviar aqui, um alerta aparecerá na tela de todos os clientes conectados.
                     </div>
