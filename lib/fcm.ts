@@ -2,7 +2,7 @@ import { getToken, onMessage } from 'firebase/messaging';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db, messaging } from './firebase';
 
-// ⚠️ CHAVE VAPID ATUALIZADA
+// ⚠️ CHAVE VAPID
 const VAPID_KEY = 'BAuLOh43fr68Lhdh5_BOlCQHw2MulSD2DPlaVdJNUcC9QJrULnsAo1xWQmT7iwAq5fmoPa4AByC8KrQVULrjFEQ'; 
 
 export const solicitarPermissaoNotificacao = async (userId?: string) => {
@@ -17,20 +17,25 @@ export const solicitarPermissaoNotificacao = async (userId?: string) => {
     if (permission === 'granted') {
       console.log('Permissão de notificação concedida.');
       
-      // Obter o Token FCM
+      // Registrar o Service Worker explicitamente para garantir escopo
+      const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+      await navigator.serviceWorker.ready;
+
+      // Obter o Token FCM usando o SW correto
       const token = await getToken(messaging, { 
-        vapidKey: VAPID_KEY 
+        vapidKey: VAPID_KEY,
+        serviceWorkerRegistration: registration
       });
 
       if (token) {
-        console.log('FCM Token:', token);
+        console.log('FCM Token obtido:', token);
         await salvarTokenNoFirestore(token, userId);
         return token;
       } else {
-        console.log('Não foi possível obter o token.');
+        console.error('Não foi possível obter o token.');
       }
     } else {
-      console.log('Permissão de notificação negada.');
+      console.warn('Permissão de notificação negada.');
     }
   } catch (error) {
     console.error('Erro ao solicitar permissão:', error);
@@ -45,13 +50,13 @@ const salvarTokenNoFirestore = async (token: string, userId?: string) => {
   
   await setDoc(tokenRef, {
     token: token,
-    userId: userId || 'anoniomous',
+    userId: userId || 'anonymous',
     userAgent: navigator.userAgent,
     updatedAt: serverTimestamp(),
     platform: 'web'
   }, { merge: true });
   
-  console.log('Token salvo no Firestore!');
+  console.log('Token salvo no Firestore com sucesso.');
 };
 
 export const ouvirMensagensEmPrimeiroPlano = (callback: (payload: any) => void) => {

@@ -78,9 +78,25 @@ export default async function handler(req, res) {
     const promises = chunks.map(chunkTokens => {
       const message = {
         notification: { title, body },
+        // Configurações Críticas para Background
+        android: {
+          priority: 'high',
+          notification: {
+            icon: 'stock_ticker_update',
+            color: '#D4A853',
+            clickAction: url || '/'
+          }
+        },
         webpush: {
+          headers: {
+            Urgency: 'high'
+          },
+          fcmOptions: {
+            link: url || '/'
+          },
           notification: {
             icon: icon || "https://cdn-icons-png.flaticon.com/512/1000/1000627.png",
+            requireInteraction: true, // Faz a notificação ficar na tela até o usuário clicar
             data: { url: url || "/" }
           }
         },
