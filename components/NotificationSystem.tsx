@@ -41,20 +41,28 @@ export function NotificationSystem() {
 
   const handleAtivarOuAtualizar = async () => {
     setLoading(true);
-    const tokenGerado = await solicitarPermissaoNotificacao();
-    setLoading(false);
-
-    if (tokenGerado) {
-      setPermission('granted');
-      toast.success("Notificações Sincronizadas!");
-    } else {
-      // Se o usuário bloqueou, avisar como desbloquear
-      if (Notification.permission === 'denied') {
-        toast.error("Notificações bloqueadas. Clique no cadeado 🔒 ao lado da URL para liberar.");
-      } else {
-        toast.error("Erro ao sincronizar notificações.");
-      }
-      setPermission(Notification.permission);
+    try {
+        const tokenGerado = await solicitarPermissaoNotificacao();
+        
+        if (tokenGerado) {
+          setPermission('granted');
+          toast.success("Notificações Sincronizadas!");
+        } else {
+          // Se o usuário bloqueou, avisar como desbloquear
+          if (Notification.permission === 'denied') {
+            toast.error("Notificações bloqueadas. Clique no cadeado 🔒 ao lado da URL para liberar.");
+          } else {
+            // Se não bloqueou mas falhou (ex: erro de rede ou timeout), aviso genérico
+            toast.error("Não foi possível sincronizar. Tente novamente.");
+          }
+          setPermission(Notification.permission);
+        }
+    } catch (error: any) {
+        console.error("Erro ao ativar notificações:", error);
+        toast.error(error.message || "Erro ao conectar serviço de notificação.");
+    } finally {
+        // GARANTE que o botão destrava, aconteça o que acontecer
+        setLoading(false);
     }
   };
 

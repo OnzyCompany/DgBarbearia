@@ -25,12 +25,20 @@ export const solicitarPermissaoNotificacao = async (userId?: string) => {
         
         await navigator.serviceWorker.ready;
 
-        // Obter o Token FCM usando o SW correto
+        // Obter o Token FCM usando o SW correto com Timeout de Segurança
         console.log('Obtendo token...');
-        const token = await getToken(messaging, { 
+        
+        const timeoutPromise = new Promise<string>((_, reject) => 
+            setTimeout(() => reject(new Error("Timeout: O Firebase demorou muito para responder. Verifique sua conexão ou VAPID Key.")), 15000)
+        );
+
+        const getTokenPromise = getToken(messaging, { 
           vapidKey: VAPID_KEY,
           serviceWorkerRegistration: registration
         });
+
+        // Corrida: Quem chegar primeiro ganha. Se o Firebase travar, o timeout destrava a UI.
+        const token = await Promise.race([getTokenPromise, timeoutPromise]);
 
         if (token) {
           console.log('FCM Token obtido:', token);
@@ -41,12 +49,14 @@ export const solicitarPermissaoNotificacao = async (userId?: string) => {
         }
       } catch (swError) {
         console.error('Erro no processo de SW/Token:', swError);
+        throw swError; // Repassa o erro para a UI tratar
       }
     } else {
       console.warn('Permissão de notificação negada pelo usuário.');
     }
   } catch (error) {
     console.error('Erro geral ao solicitar permissão:', error);
+    throw error;
   }
   return null;
 };
