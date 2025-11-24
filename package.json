@@ -14,6 +14,7 @@
     "react-dom": "18.3.1",
     "react-router-dom": "^6.22.3",
     "firebase": "10.12.2",
+    "firebase-admin": "^11.8.0",
     "framer-motion": "11.2.10",
     "lucide-react": "0.395.0",
     "recharts": "2.12.7",

@@ -1,9 +1,10 @@
+
 'use client';
 
 import React, { useState, useEffect } from 'react';
 import { Sidebar } from '../../../../components/admin/Sidebar';
-import { MessageSquare, Users, Send, Bell, Radio, Volume2, CheckCircle, AlertTriangle } from 'lucide-react';
-import { collection, query, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
+import { MessageSquare, Users, Send, Bell, Radio, Volume2, AlertTriangle, Loader2 } from 'lucide-react';
+import { collection, query, getDocs, addDoc } from 'firebase/firestore';
 import { db } from '../../../../lib/firebase';
 import toast from 'react-hot-toast';
 
@@ -28,6 +29,7 @@ export default function AdminNotificacoesPage() {
   const [mensagem, setMensagem] = useState('');
   const [tituloPush, setTituloPush] = useState('');
   const [somAtivo, setSomAtivo] = useState(false);
+  const [enviando, setEnviando] = useState(false);
   
   useEffect(() => {
     const fetchClientes = async () => {
@@ -58,18 +60,49 @@ export default function AdminNotificacoesPage() {
           toast.error("Preencha título e mensagem");
           return;
       }
+      
+      setEnviando(true);
+      const toastId = toast.loading("Enviando notificação...");
+
       try {
+          // 1. Salvar histórico no banco (para registro)
           await addDoc(collection(db, 'notificacoes_push'), {
               titulo: tituloPush,
               mensagem: mensagem,
-              criadoEm: new Date(), // Usando Date object para compatibilidade com o filtro do NotificationSystem
+              criadoEm: new Date(),
               url: window.location.origin 
           });
-          toast.success("Notificação Push Enviada!");
-          setTituloPush('');
-          setMensagem('');
-      } catch (error) {
-          toast.error("Erro ao enviar push");
+
+          // 2. Chamar API Serverless da Vercel
+          const response = await fetch('/api/send-push', {
+              method: 'POST',
+              headers: {
+                  'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                  title: tituloPush,
+                  body: mensagem,
+                  url: window.location.origin,
+                  icon: "https://cdn-icons-png.flaticon.com/512/1000/1000627.png"
+              })
+          });
+
+          const data = await response.json();
+
+          if (response.ok) {
+              toast.success(data.message || "Enviado para todos!", { id: toastId });
+              setTituloPush('');
+              setMensagem('');
+          } else {
+              console.error(data);
+              throw new Error(data.error || "Erro na API");
+          }
+
+      } catch (error: any) {
+          console.error(error);
+          toast.error(`Erro: ${error.message}`, { id: toastId });
+      } finally {
+          setEnviando(false);
       }
   };
 
@@ -212,10 +245,11 @@ export default function AdminNotificacoesPage() {
 
                         <button 
                             onClick={handleEnviarPush}
-                            className="w-full py-4 bg-[#D4A853] text-[#0D0D0D] font-bold rounded-xl hover:bg-[#E5BE7D] transition-colors flex items-center justify-center gap-2 mt-4"
+                            disabled={enviando}
+                            className="w-full py-4 bg-[#D4A853] text-[#0D0D0D] font-bold rounded-xl hover:bg-[#E5BE7D] transition-colors flex items-center justify-center gap-2 mt-4 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            <Send className="w-5 h-5" />
-                            Disparar Notificação para Todos
+                            {enviando ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+                            {enviando ? "Enviando..." : "Disparar Notificação para Todos"}
                         </button>
                     </div>
                 </div>
