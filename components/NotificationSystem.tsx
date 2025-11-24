@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
@@ -5,7 +6,7 @@ import { collection, query, limit, onSnapshot, orderBy } from 'firebase/firestor
 import { db } from '../lib/firebase';
 import toast from 'react-hot-toast';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Bell, Volume2 } from 'lucide-react';
+import { Bell } from 'lucide-react';
 
 export function NotificationSystem() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -13,53 +14,45 @@ export function NotificationSystem() {
   const navigate = useNavigate();
   const isAdmin = location.pathname.startsWith('/admin');
   
-  // Estado para controlar a permissão visualmente
   const [permissionState, setPermissionState] = useState<NotificationPermission>('default');
   
-  // Marca a hora que o componente montou para ignorar eventos antigos
-  const [mountTime] = useState(new Date());
-
+  // Inicializa o áudio
   useEffect(() => {
-    // Verificar estado atual da permissão ao carregar
     if ('Notification' in window) {
       setPermissionState(Notification.permission);
     }
-
-    // Link do áudio solicitado pelo usuário (Cloudinary)
     audioRef.current = new Audio('https://res.cloudinary.com/dxhlvrach/video/upload/v1763934033/notificacao_umami_buejiy.mp3');
     audioRef.current.volume = 1.0;
   }, []);
 
-  // Função para desbloquear áudio e pedir permissão (Deve ser chamada por clique do usuário)
   const requestPermission = async () => {
     if (!audioRef.current) return;
 
     try {
-      // 1. Desbloquear AudioContext (Toca e pausa rapidinho)
+      // Truque para desbloquear áudio em navegadores mobile/desktop
       await audioRef.current.play().catch(() => {});
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
 
-      // 2. Pedir Permissão Nativa
       if ('Notification' in window) {
         const permission = await Notification.requestPermission();
         setPermissionState(permission);
         
         if (permission === 'granted') {
-          // Teste imediato via Service Worker se disponível
-          showNativeNotification('NextBarber Pro', 'Notificações Ativadas com Sucesso! 🔔');
+          // Registra o momento atual para não receber notificações velhas
+          localStorage.setItem('lastNotificationTime', Date.now().toString());
+          
+          showNativeNotification('Notificações Ativadas', 'Agora você receberá alertas do sistema! 🔔');
           audioRef.current.play();
-          toast.success("Sistema de Notificação Ativo!");
-        } else {
-          toast.error("Permissão negada. Não poderemos avisar sobre agendamentos.");
+          toast.success("Notificações e Som Ativados!");
         }
       }
     } catch (e) {
-      console.error("Erro ao solicitar permissão:", e);
+      console.error("Erro permissão:", e);
     }
   };
 
-  // Expor função global para o Admin usar no botão da página de configurações
+  // Função Global para ativar via Admin Page
   useEffect(() => {
      // @ts-ignore
      window.enableAppAudio = async (callback: (enabled: boolean) => void) => {
@@ -72,62 +65,41 @@ export function NotificationSystem() {
   const playAlert = () => {
     if (audioRef.current) {
       audioRef.current.currentTime = 0;
-      const promise = audioRef.current.play();
-      if (promise !== undefined) {
-          promise.catch(error => {
-              console.log("Autoplay bloqueado. Necessário interação do usuário.", error);
-          });
-      }
+      audioRef.current.play().catch(err => console.log("Som bloqueado pelo navegador:", err));
     }
   };
 
   const showNativeNotification = async (titulo: string, corpo: string, urlDestino?: string) => {
-      // 1. Toast Visual (Dentro do Site)
+      // 1. Toast (Visual no site)
       toast(corpo, {
         icon: '🔔',
-        duration: 8000,
-        style: { 
-            borderRadius: '12px', 
-            background: '#1A1A1A', 
-            color: '#fff', 
-            border: '1px solid #D4A853',
-        },
+        duration: 6000,
+        style: { background: '#1A1A1A', color: '#fff', border: '1px solid #D4A853' },
       });
 
-      // 2. Notificação do Sistema (Fora do Site) via Service Worker ou API Nativa
+      // 2. Popup Nativo (Fora do site - Barra de Notificação)
       if ('Notification' in window && Notification.permission === 'granted') {
           try {
-              // Tenta usar o Service Worker para notificações mais robustas (Mobile)
               const registration = await navigator.serviceWorker?.getRegistration();
               
+              // Tenta via Service Worker (Melhor para Mobile/Android)
               if (registration && 'showNotification' in registration) {
                   await registration.showNotification(titulo, {
                       body: corpo,
                       icon: 'https://cdn-icons-png.flaticon.com/512/1000/1000627.png',
                       vibrate: [200, 100, 200],
-                      tag: 'nextbarber-alert',
+                      tag: 'nextbarber-alert-' + Date.now(), // Tag única para não sobrepor
                       data: { url: urlDestino || '/' }
                   } as any);
               } else {
-                  // Fallback para API desktop padrão
-                  const notif = new Notification(titulo, {
+                  // Fallback Desktop
+                  new Notification(titulo, {
                       body: corpo,
                       icon: 'https://cdn-icons-png.flaticon.com/512/1000/1000627.png',
-                      requireInteraction: true, 
-                      tag: 'nextbarber-alert'
                   });
-                  
-                  if (urlDestino) {
-                      notif.onclick = (e) => {
-                          e.preventDefault();
-                          window.focus();
-                          navigate(urlDestino);
-                          notif.close();
-                      };
-                  }
               }
           } catch (e) {
-              console.error("Erro na notificação nativa:", e);
+              console.error("Erro notificação nativa:", e);
           }
       }
   };
@@ -135,49 +107,60 @@ export function NotificationSystem() {
   useEffect(() => {
     if (!db) return;
 
-    // --- LISTENER 1: PUSH GLOBAL ---
-    const qPush = query(collection(db, 'notificacoes_push'), orderBy('criadoEm', 'desc'), limit(5));
+    // Recupera a última vez que notificou do LocalStorage ou usa AGORA
+    let lastTime = parseInt(localStorage.getItem('lastNotificationTime') || Date.now().toString());
 
+    // Função auxiliar para verificar se é novo e notificar
+    const checkAndNotify = (docData: any, titulo: string, msg: string, url: string) => {
+        // Converte timestamp do Firestore ou String ISO para milissegundos
+        let docTime = 0;
+        if (docData.criadoEm?.toMillis) {
+            docTime = docData.criadoEm.toMillis();
+        } else if (docData.criadoEm instanceof Date) {
+            docTime = docData.criadoEm.getTime();
+        } else if (docData.criadoEm?.seconds) {
+            docTime = docData.criadoEm.seconds * 1000;
+        } else {
+            // Tenta converter string ISO
+            docTime = new Date(docData.criadoEm).getTime();
+        }
+
+        // Só notifica se o evento aconteceu DEPOIS da última marcação
+        if (docTime > lastTime) {
+            playAlert();
+            showNativeNotification(titulo, msg, url);
+            
+            // Atualiza o lastTime para não repetir esse evento
+            lastTime = docTime;
+            localStorage.setItem('lastNotificationTime', docTime.toString());
+        }
+    };
+
+    // --- LISTENER 1: PUSH GLOBAL (Clientes) ---
+    const qPush = query(collection(db, 'notificacoes_push'), orderBy('criadoEm', 'desc'), limit(1));
     const unsubscribePush = onSnapshot(qPush, (snapshot) => {
       snapshot.docChanges().forEach((change) => {
         if (change.type === 'added') {
           const data = change.doc.data();
-          // Filtro de Timestamp no Cliente
-          const dataCriacao = data.criadoEm?.toDate ? data.criadoEm.toDate() : new Date(data.criadoEm);
-          
-          if (dataCriacao > mountTime) {
-            playAlert();
-            showNativeNotification(data.titulo, data.mensagem);
-          }
+          checkAndNotify(data, data.titulo, data.mensagem, '/');
         }
       });
     });
 
     // --- LISTENER 2: NOVOS AGENDAMENTOS (Admin) ---
     let unsubscribeAgendamentos = () => {};
-
     if (isAdmin) {
-        const qAgendamentos = query(
-            collection(db, 'agendamentos'), 
-            orderBy('criadoEm', 'desc'), 
-            limit(5)
-        );
-
+        const qAgendamentos = query(collection(db, 'agendamentos'), orderBy('criadoEm', 'desc'), limit(1));
         unsubscribeAgendamentos = onSnapshot(qAgendamentos, (snapshot) => {
             snapshot.docChanges().forEach((change) => {
                 if (change.type === 'added') {
                     const data = change.doc.data();
-                    const dataCriacao = data.criadoEm?.toDate ? data.criadoEm.toDate() : new Date(data.criadoEm);
-                    
-                    // Ajuste: Status pode ser pendente ou confirmado, o importante é que é novo
-                    if (dataCriacao > mountTime) {
-                        playAlert();
-                        showNativeNotification(
-                            'Novo Agendamento! ✂️', 
-                            `${data.clienteNome} agendou para ${data.data} às ${data.horario}`,
-                            '/admin/agendamentos'
-                        );
-                    }
+                    checkAndNotify(
+                        data, 
+                        'Novo Agendamento! ✂️', 
+                        `${data.clienteNome} - ${data.horario}`, 
+                        '/admin/agendamentos'
+                    );
                 }
             });
         });
@@ -187,9 +170,8 @@ export function NotificationSystem() {
         unsubscribePush();
         unsubscribeAgendamentos();
     };
-  }, [isAdmin, mountTime]);
+  }, [isAdmin]);
 
-  // Renderiza botão flutuante se a permissão não foi concedida ainda
   if (permissionState === 'default') {
     return (
       <div className="fixed bottom-4 right-4 z-[9999] animate-bounce">

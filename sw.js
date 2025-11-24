@@ -7,21 +7,23 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(self.clients.claim());
 });
 
-// Handle notification clicks
+// Escuta o clique na notificação do sistema (Android/Windows)
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
+  // Tenta focar na aba aberta ou abrir uma nova
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      // If a window is already open, focus it
+      // Se já tiver uma aba aberta, foca nela
       for (const client of clientList) {
         if (client.url && 'focus' in client) {
           return client.focus();
         }
       }
-      // Otherwise open a new window
+      // Se não, abre o site
       if (clients.openWindow) {
-        return clients.openWindow('/');
+        const urlToOpen = event.notification.data?.url || '/';
+        return clients.openWindow(urlToOpen);
       }
     })
   );

@@ -16,7 +16,7 @@ import AdminNotificacoesPage from './(admin)/admin/notificacoes/page';
 import { NotificationSystem } from '../components/NotificationSystem';
 
 // Layout wrapper to apply global styles and providers
-const Layout = ({ children }: { children: React.ReactNode }) => {
+const Layout = ({ children }: { children?: React.ReactNode }) => {
   return (
     <div className="min-h-screen bg-dark text-white font-sans antialiased selection:bg-gold selection:text-dark">
       <NotificationSystem />
