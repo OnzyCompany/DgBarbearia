@@ -2,7 +2,6 @@
 
 import { motion } from 'framer-motion';
 import { Calendar, Clock, Star, MapPin } from 'lucide-react';
-import { StyleConsultant } from '../components/ai/StyleConsultant';
 import { useNavigate } from 'react-router-dom';
 
 export default function HomePage() {
@@ -14,7 +13,6 @@ export default function HomePage() {
 
   return (
     <main className="min-h-screen bg-dark">
-      <StyleConsultant />
       
       {/* Hero Section */}
       <section className="relative min-h-screen flex items-center justify-center px-4 overflow-hidden">
@@ -66,7 +64,7 @@ export default function HomePage() {
             transition={{ delay: 0.3, duration: 0.8 }}
             className="text-gray-400 text-lg mb-8 max-w-lg mx-auto"
           >
-            A experiência de barbearia definitiva. Agende seu horário e deixe nossa IA te ajudar a encontrar o estilo perfeito.
+            A experiência de barbearia definitiva. Agende seu horário com facilidade e rapidez.
           </motion.p>
 
           {/* CTA Button */}
@@ -111,6 +109,13 @@ export default function HomePage() {
           </motion.div>
         </div>
       </section>
+      
+      {/* Footer com Link Discreto Admin */}
+      <footer className="fixed bottom-2 left-0 w-full text-center pb-2 pointer-events-none">
+        <a href="/#/admin" className="text-white/5 hover:text-gold/20 text-[10px] transition-colors pointer-events-auto cursor-default">
+          Admin Access
+        </a>
+      </footer>
     </main>
   );
 }
