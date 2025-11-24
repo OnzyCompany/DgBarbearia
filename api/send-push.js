@@ -78,18 +78,21 @@ export default async function handler(req, res) {
     const promises = chunks.map(chunkTokens => {
       const message = {
         notification: { title, body },
-        // Configurações Críticas para Background
+        // Configurações Críticas para Background e Mobile
         android: {
           priority: 'high',
           notification: {
-            icon: 'stock_ticker_update',
+            icon: 'stock_ticker_update', // Usar ícone padrão do sistema ou customizado se houver
             color: '#D4A853',
-            clickAction: url || '/'
+            clickAction: url || '/',
+            priority: 'max', // Prioridade máxima na UI do Android
+            defaultSound: true,
+            visibility: 'public'
           }
         },
         webpush: {
           headers: {
-            Urgency: 'high'
+            Urgency: 'high' // Cabeçalho HTTP para WebPush
           },
           fcmOptions: {
             link: url || '/'

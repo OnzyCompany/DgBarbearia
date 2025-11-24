@@ -12,51 +12,59 @@ export const solicitarPermissaoNotificacao = async (userId?: string) => {
       return null;
     }
 
+    console.log("Solicitando permissão...");
     const permission = await Notification.requestPermission();
     
     if (permission === 'granted') {
-      console.log('Permissão de notificação concedida.');
+      console.log('Permissão concedida. Registrando SW...');
       
-      // Registrar o Service Worker explicitamente para garantir escopo
-      const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-      await navigator.serviceWorker.ready;
+      try {
+        // Registrar o Service Worker explicitamente para garantir escopo
+        const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+        console.log('SW registrado:', registration.scope);
+        
+        await navigator.serviceWorker.ready;
 
-      // Obter o Token FCM usando o SW correto
-      const token = await getToken(messaging, { 
-        vapidKey: VAPID_KEY,
-        serviceWorkerRegistration: registration
-      });
+        // Obter o Token FCM usando o SW correto
+        console.log('Obtendo token...');
+        const token = await getToken(messaging, { 
+          vapidKey: VAPID_KEY,
+          serviceWorkerRegistration: registration
+        });
 
-      if (token) {
-        console.log('FCM Token obtido:', token);
-        await salvarTokenNoFirestore(token, userId);
-        return token;
-      } else {
-        console.error('Não foi possível obter o token.');
+        if (token) {
+          console.log('FCM Token obtido:', token);
+          await salvarTokenNoFirestore(token, userId);
+          return token;
+        } else {
+          console.error('Token veio vazio.');
+        }
+      } catch (swError) {
+        console.error('Erro no processo de SW/Token:', swError);
       }
     } else {
-      console.warn('Permissão de notificação negada.');
+      console.warn('Permissão de notificação negada pelo usuário.');
     }
   } catch (error) {
-    console.error('Erro ao solicitar permissão:', error);
+    console.error('Erro geral ao solicitar permissão:', error);
   }
   return null;
 };
 
 const salvarTokenNoFirestore = async (token: string, userId?: string) => {
-  // Salva na coleção 'users_notifications'
-  // Usamos o próprio token como ID do documento para evitar duplicatas
-  const tokenRef = doc(db, 'users_notifications', token);
-  
-  await setDoc(tokenRef, {
-    token: token,
-    userId: userId || 'anonymous',
-    userAgent: navigator.userAgent,
-    updatedAt: serverTimestamp(),
-    platform: 'web'
-  }, { merge: true });
-  
-  console.log('Token salvo no Firestore com sucesso.');
+  try {
+    const tokenRef = doc(db, 'users_notifications', token);
+    await setDoc(tokenRef, {
+      token: token,
+      userId: userId || 'anonymous',
+      userAgent: navigator.userAgent,
+      updatedAt: serverTimestamp(),
+      platform: 'web'
+    }, { merge: true });
+    console.log('Token salvo no Firestore.');
+  } catch (e) {
+    console.error("Erro ao salvar token no Firestore:", e);
+  }
 };
 
 export const ouvirMensagensEmPrimeiroPlano = (callback: (payload: any) => void) => {

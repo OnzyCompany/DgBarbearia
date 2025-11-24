@@ -1,13 +1,13 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Bell, CheckCircle } from 'lucide-react';
+import { Bell, CheckCircle, Loader2, RefreshCw } from 'lucide-react';
 import { solicitarPermissaoNotificacao, ouvirMensagensEmPrimeiroPlano } from '../lib/fcm';
 import toast from 'react-hot-toast';
 
 export function NotificationSystem() {
   const [permission, setPermission] = useState<NotificationPermission>('default');
-  const [token, setToken] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if ('Notification' in window) {
@@ -18,7 +18,7 @@ export function NotificationSystem() {
     ouvirMensagensEmPrimeiroPlano((payload) => {
       // Tocar som
       const audio = new Audio('https://res.cloudinary.com/dxhlvrach/video/upload/v1763934033/notificacao_umami_buejiy.mp3');
-      audio.play().catch(() => {});
+      audio.play().catch((e) => console.log("Audio play blocked:", e));
 
       // Mostrar Toast
       toast.custom((t) => (
@@ -35,33 +35,60 @@ export function NotificationSystem() {
             </div>
           </div>
         </div>
-      ));
+      ), { duration: 5000 });
     });
   }, []);
 
-  const ativarNotificacoes = async () => {
+  const handleAtivarOuAtualizar = async () => {
+    setLoading(true);
     const tokenGerado = await solicitarPermissaoNotificacao();
+    setLoading(false);
+
     if (tokenGerado) {
-      setToken(tokenGerado);
       setPermission('granted');
-      toast.success("Notificações Nativas Ativadas!");
+      toast.success("Notificações Sincronizadas!");
     } else {
-      toast.error("Erro ao ativar ou permissão negada.");
+      // Se o usuário bloqueou, avisar como desbloquear
+      if (Notification.permission === 'denied') {
+        toast.error("Notificações bloqueadas. Clique no cadeado 🔒 ao lado da URL para liberar.");
+      } else {
+        toast.error("Erro ao sincronizar notificações.");
+      }
+      setPermission(Notification.permission);
     }
   };
 
-  if (permission === 'granted') return null;
+  // Renderização condicional do estilo do botão
+  const isGranted = permission === 'granted';
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 animate-bounce">
+    <div className="fixed bottom-6 right-6 z-50">
       <button
-        onClick={ativarNotificacoes}
-        className="bg-[#D4A853] hover:bg-[#E5BE7D] text-[#0D0D0D] font-bold px-6 py-4 rounded-full shadow-2xl flex items-center gap-3 border-2 border-white/20 transition-all transform hover:scale-105"
+        onClick={handleAtivarOuAtualizar}
+        disabled={loading}
+        className={`
+          font-bold px-6 py-4 rounded-full shadow-2xl flex items-center gap-3 border-2 transition-all transform hover:scale-105
+          ${isGranted 
+            ? 'bg-green-900/80 border-green-500 text-green-400 hover:bg-green-900' 
+            : 'bg-[#D4A853] border-white/20 text-[#0D0D0D] hover:bg-[#E5BE7D] animate-bounce'
+          }
+        `}
       >
-        <Bell className="w-6 h-6 fill-current" />
-        <div>
-          <p className="text-sm leading-none">Ativar Notificações</p>
-          <p className="text-[10px] font-normal opacity-80">Receba avisos mesmo fechado</p>
+        {loading ? (
+          <Loader2 className="w-6 h-6 animate-spin" />
+        ) : isGranted ? (
+          <CheckCircle className="w-6 h-6" />
+        ) : (
+          <Bell className="w-6 h-6 fill-current" />
+        )}
+        
+        <div className="text-left">
+          <p className="text-sm leading-none font-bold">
+            {loading ? "Sincronizando..." : isGranted ? "Notificações Ativas" : "Ativar Notificações"}
+          </p>
+          <p className={`text-[10px] font-normal ${isGranted ? 'text-green-300' : 'opacity-80'}`}>
+            {isGranted ? "Clique para testar conexão" : "Receba avisos mesmo fechado"}
+          </p>
         </div>
       </button>
     </div>
